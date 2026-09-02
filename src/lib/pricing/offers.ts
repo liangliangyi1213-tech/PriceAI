@@ -1,0 +1,1 @@
+import type {Offer} from "@/types/catalog"; export const getLowestOffer=(xs:Offer[])=>xs.reduce<Offer|undefined>((a,x)=>!a||x.price<a.price?x:a,undefined); export const formatPrice=(n:number)=>`¥${n.toLocaleString("zh-CN")}`;

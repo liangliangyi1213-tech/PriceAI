@@ -1,0 +1,1 @@
+import type {Product} from "@/types/catalog"; export const searchProducts=(ps:Product[],q:string)=>{const x=q.trim().toLowerCase();return x?ps.filter(p=>[p.brand,p.name,p.description,...Object.values(p.specs)].join(" ").toLowerCase().includes(x)):ps};
