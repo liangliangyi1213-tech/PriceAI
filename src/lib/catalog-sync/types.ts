@@ -1,4 +1,4 @@
-import type { MarketplaceId, PlatformSearchResult } from "@/lib/platforms/types";
+import type { MarketplaceId, PlatformAdapterId, PlatformSearchResult } from "@/lib/platforms/types";
 import type { Product, ProductVariant } from "@/types/catalog";
 
 export type NormalizedPlatformProduct = {
@@ -57,3 +57,28 @@ export type CatalogSyncResult = {
   snapshotsRecorded: number;
   writeFailures: Array<{ offerIdentity: string; message: string }>;
 };
+
+export type CatalogSyncRunInput = {
+  platform: PlatformAdapterId;
+  query: string;
+  dryRun: boolean;
+  collectedAt?: string;
+};
+
+export type CatalogSyncPreview = {
+  platform: PlatformAdapterId;
+  query: string;
+  fetchedCount: number;
+  matchedCount: number;
+  unmatchedCount: number;
+  ambiguousCount: number;
+  rejectedCount: number;
+  offerUpserts: number;
+  priceHistorySnapshots: number;
+  matchedItems: Array<{ offerIdentity: string; productId: string; variantId: string; platform: MarketplaceId; price: number }>;
+  unmatchedItems: Array<{ platform: MarketplaceId; externalProductId: string; title: string }>;
+  ambiguousItems: Array<{ platform: MarketplaceId; externalProductId: string; title: string }>;
+  rejectedItems: Array<{ platform: MarketplaceId; externalProductId: string; reason: string }>;
+};
+
+export type CatalogSyncRunResult = { dryRun: boolean; preview: CatalogSyncPreview; syncResult?: CatalogSyncResult };
