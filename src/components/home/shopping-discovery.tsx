@@ -45,9 +45,9 @@ export function ShoppingDiscovery({ priceFocus, rankedProducts }: ShoppingDiscov
           <div className="flex items-start justify-between gap-4">
             <div>
               <h3 className="font-bold text-slate-950" id="value-rank-heading">性价比榜</h3>
-              <p className="mt-1 text-sm text-slate-500">复用 PriceAI 当前评分结果</p>
+              <p className="mt-1 text-sm text-slate-500">按 PriceAI 评分，看看哪些更值得买</p>
             </div>
-            <Link className="text-sm font-semibold text-blue-700 hover:text-blue-800" href="/rankings/phones">全部榜单 →</Link>
+            <Link className="text-sm font-semibold text-blue-700 hover:text-blue-800" href="/rankings/phones">查看手机榜单 →</Link>
           </div>
           <div className="mt-3 divide-y divide-slate-100">
             {rankedProducts.map((row, index) => <ProductRow key={row.product.id} rank={index + 1} row={row} />)}

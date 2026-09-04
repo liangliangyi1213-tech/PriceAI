@@ -42,7 +42,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:py-12">
         <p className="text-sm font-medium text-blue-600">{product.brand}</p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">{product.name}</h1>
-        <p className="mt-2 text-slate-600">性价比 {score.total}/100</p>
+        <p className="mt-2 text-slate-600">PriceAI 评分 {score.total} / 100</p>
 
         <dl className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {Object.entries(product.specs).map(([label, value]) => (
@@ -62,7 +62,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <article className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${offer.id === lowestOffer?.id ? "border-blue-500 bg-blue-50/40" : "border-slate-200"}`} key={offer.id}>
                 <p className="text-sm leading-6 text-slate-600">
                   <span className="font-semibold text-slate-950">{offer.platform} · {offer.seller}</span>
-                  <br />评分 {offer.rating} · 销量 {offer.sales} · {offer.warranty}
+                  <br />平台评分 {offer.rating} · 销量 {offer.sales} · {offer.warranty}
                 </p>
                 <p className="text-lg font-bold text-slate-950">
                   {formatPrice(offer.price)} {offer.id === lowestOffer?.id && <span className="ml-2 text-sm text-blue-700">当前最低价</span>}

@@ -27,7 +27,7 @@ export function PriceHistoryPanel({ view }: { view: PriceHistoryViewModel }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-blue-700">PriceAI 价格数据</p>
-          <h2 className="mt-1 text-2xl font-bold text-slate-950" id="price-history-heading">价格趋势</h2>
+          <h2 className="mt-1 text-2xl font-bold text-slate-950" id="price-history-heading">历史价格</h2>
         </div>
         <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-800">{view.judgment.label}</span>
       </div>
@@ -35,7 +35,7 @@ export function PriceHistoryPanel({ view }: { view: PriceHistoryViewModel }) {
       {!stats.sampleCount ? (
         <div className="mt-6 rounded-xl border border-dashed border-slate-300 p-6 text-center">
           <p className="font-medium text-slate-950">暂无足够的历史价格数据</p>
-          <p className="mt-2 text-sm text-slate-600">历史价格到达后，这里会展示价格趋势与价格位置。</p>
+          <p className="mt-2 text-sm text-slate-600">积累更多价格记录后，就能查看价格变化。</p>
         </div>
       ) : (
         <>
@@ -45,7 +45,7 @@ export function PriceHistoryPanel({ view }: { view: PriceHistoryViewModel }) {
             <StatCard label="历史最高价" value={formatPrice(stats.historicalHigh)} />
             <StatCard label="历史平均价" value={formatPrice(stats.averagePrice)} />
             <StatCard label="距历史低价" value={formatPercent(stats.currentPriceDistanceFromLowPercent)} />
-            <StatCard label="历史样本" value={`${stats.sampleCount} 个`} />
+            <StatCard label="价格记录" value={`${stats.sampleCount} 条`} />
           </dl>
           <p className="mt-5 rounded-xl bg-blue-50/70 p-4 text-sm leading-6 text-slate-700">{view.summary}</p>
           {view.points.length >= 2 && <div className="mt-6 overflow-x-auto"><PriceHistoryChart points={view.points} /></div>}

@@ -12,17 +12,17 @@ type CompareRow = {
 const rows: CompareRow[] = [
   { label: "品牌", value: (product) => product.brand },
   { label: "商品名称", value: (product) => product.name },
-  { label: "性价比分", value: (product) => product.valueScore, bestMetric: "valueScore", bestDirection: "highest" },
-  { label: "最低有效价格", value: (product) => product.lowestPrice === null ? null : formatPrice(product.lowestPrice), bestMetric: "lowestPrice", bestDirection: "lowest" },
+  { label: "PriceAI 评分", value: (product) => product.valueScore, bestMetric: "valueScore", bestDirection: "highest" },
+  { label: "已收录最低价", value: (product) => product.lowestPrice === null ? null : formatPrice(product.lowestPrice), bestMetric: "lowestPrice", bestDirection: "lowest" },
   { label: "最低价平台", value: (product) => product.lowestPricePlatform },
-  { label: "CPU / 芯片", value: (product) => product.chip },
+  { label: "处理器", value: (product) => product.chip },
   { label: "内存 / 存储", value: (product) => product.storage },
   { label: "屏幕", value: (product) => product.screen },
   { label: "电池", value: (product) => product.battery },
   { label: "摄像头 / 影像", value: (product) => product.camera },
-  { label: "Rating", value: (product) => product.rating, bestMetric: "rating", bestDirection: "highest" },
-  { label: "Sales", value: (product) => product.sales, bestMetric: "sales", bestDirection: "highest" },
-  { label: "有效 Offer 数量", value: (product) => product.offerCount },
+  { label: "平台评分", value: (product) => product.rating, bestMetric: "rating", bestDirection: "highest" },
+  { label: "销量", value: (product) => product.sales, bestMetric: "sales", bestDirection: "highest" },
+  { label: "可用报价数量", value: (product) => product.offerCount },
 ];
 
 function display(value: string | number | null): string | number {

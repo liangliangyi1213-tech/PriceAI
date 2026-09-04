@@ -27,7 +27,7 @@ export function HeroDiscovery({ products }: { products: ProductSearchRow[] }) {
             <div className="min-w-0">
               <p className="text-xs font-medium text-slate-500">{row.product.brand}</p>
               <h2 className="mt-1 truncate text-sm font-bold tracking-[-0.02em] text-slate-950 group-hover:text-blue-700">{row.product.name}</h2>
-              <div className="mt-2 flex items-center justify-between gap-2">
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-base font-bold text-slate-950">{row.lowestOffer ? `${formatPrice(row.lowestOffer.price)} 起` : "暂无报价"}</p>
                 <PriceAIScore score={row.valueScore} showLabel={false} size="compact" />
               </div>

@@ -42,7 +42,7 @@ export function PriceHistoryChart({ points }: { points: PriceHistoryChartPoint[]
   return (
     <div className="mt-6">
       <div className="min-w-[34rem]">
-        <svg aria-label="近 30 天价格趋势图" className="h-auto w-full" role="img" viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
+        <svg aria-label="已收录历史价格趋势图" className="h-auto w-full" role="img" viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
           <line stroke="#cbd5e1" strokeWidth="1" x1={padding.left} x2={chartWidth - padding.right} y1={padding.top} y2={padding.top} />
           <line stroke="#cbd5e1" strokeWidth="1" x1={padding.left} x2={chartWidth - padding.right} y1={padding.top + plotHeight} y2={padding.top + plotHeight} />
           <text fill="#64748b" fontSize="12" textAnchor="end" x={padding.left - 10} y={padding.top + 4}>{formatPrice(high)}</text>
