@@ -9,7 +9,7 @@ import type {
   PlatformSearchSort,
 } from "./types";
 
-const offerPlatformMap: Record<Offer["platform"], MarketplaceId> = {
+const offerPlatformMap: Record<"京东" | "淘宝" | "拼多多", MarketplaceId> = {
   京东: "jd",
   淘宝: "taobao",
   拼多多: "pdd",
@@ -27,7 +27,7 @@ function sortResults(results: PlatformSearchResult[], sort: PlatformSearchSort |
 
 function normalizeOffer(product: Product, offer: Offer): PlatformSearchResult {
   return {
-    platform: offerPlatformMap[offer.platform],
+    platform: offerPlatformMap[offer.platform as keyof typeof offerPlatformMap],
     externalProductId: product.id,
     externalVariantId: offer.variantId,
     title: offer.title,
