@@ -2,7 +2,13 @@ import type { Product, ProductVariant } from "@/types/catalog";
 import { getLowestOffer } from "@/lib/pricing/offers";
 import { scoreVariant } from "@/lib/scoring/value-score";
 
+import { hashProductFacts } from "./facts-hash";
+import type {
+  ProductInsightCacheRepository,
+} from "./insight-cache-repository";
 import type { ProductFacts, ProductInsight } from "./types";
+
+export const productInsightModel = "gpt-5-mini";
 
 const insightFields = ["verdict", "pros", "cons", "suitableFor", "notSuitableFor", "buyingAdvice"] as const;
 
@@ -68,6 +74,14 @@ function logOpenAIFailure(stage: "configuration" | "request" | "parse", error: u
       ...details,
       requestId: requestId ?? details.requestId,
     })}`,
+  );
+}
+
+function logCacheFailure(operation: "read" | "write", error: unknown) {
+  const details = getSafeOpenAIErrorDetails(error);
+
+  console.error(
+    `[PriceAI][InsightCache] ${operation} failed ${JSON.stringify(details)}`,
   );
 }
 
@@ -138,8 +152,12 @@ export function parseProductInsight(value: unknown): ProductInsight | null {
   };
 }
 
-export async function getProductInsight(product: Product, variant: ProductVariant): Promise<ProductInsight> {
-  const facts = buildProductFacts(product, variant);
+export type ProductInsightDependencies = {
+  cache?: ProductInsightCacheRepository;
+  generate?: (facts: ProductFacts) => Promise<ProductInsight | null>;
+};
+
+async function generateProductInsight(facts: ProductFacts): Promise<ProductInsight | null> {
 
   if (!process.env.OPENAI_API_KEY) {
     logOpenAIFailure("configuration", {
@@ -147,14 +165,14 @@ export async function getProductInsight(product: Product, variant: ProductVarian
       code: "missing_api_key",
       message: "OPENAI_API_KEY is not available to the server runtime.",
     });
-    return fallbackInsight(facts);
+    return null;
   }
 
   let response: { output_text: string; _request_id?: string | null };
   try {
     const { getOpenAIClient } = await import("./client");
     response = await getOpenAIClient().responses.create({
-      model: "gpt-5-mini",
+      model: productInsightModel,
       store: false,
       instructions: systemPrompt,
       input: JSON.stringify(facts),
@@ -164,7 +182,7 @@ export async function getProductInsight(product: Product, variant: ProductVarian
     });
   } catch (error) {
     logOpenAIFailure("request", error);
-    return fallbackInsight(facts);
+    return null;
   }
 
   try {
@@ -184,5 +202,56 @@ export async function getProductInsight(product: Product, variant: ProductVarian
     logOpenAIFailure("parse", error, response._request_id);
   }
 
-  return fallbackInsight(facts);
+  return null;
+}
+
+async function getDefaultCacheRepository(): Promise<ProductInsightCacheRepository> {
+  const { getProductInsightCacheRepository } = await import("./insight-cache-repository");
+  return getProductInsightCacheRepository();
+}
+
+export async function getProductInsight(
+  product: Product,
+  variant: ProductVariant,
+  dependencies: ProductInsightDependencies = {},
+): Promise<ProductInsight> {
+  const facts = buildProductFacts(product, variant);
+  const factsHash = hashProductFacts(facts);
+  const cacheKey = { productId: product.id, variantId: variant.id, factsHash };
+  let cache = dependencies.cache;
+
+  if (!cache) {
+    try {
+      cache = await getDefaultCacheRepository();
+    } catch (error) {
+      logCacheFailure("read", error);
+    }
+  }
+
+  if (cache) {
+    try {
+      const cachedInsight = await cache.get(cacheKey);
+      const parsedInsight = parseProductInsight(cachedInsight);
+      if (parsedInsight) return parsedInsight;
+
+      if (cachedInsight !== null) {
+        logCacheFailure("read", new Error("Cached ProductInsight has an invalid shape."));
+      }
+    } catch (error) {
+      logCacheFailure("read", error);
+    }
+  }
+
+  const insight = await (dependencies.generate ?? generateProductInsight)(facts);
+  if (!insight) return fallbackInsight(facts);
+
+  if (cache) {
+    try {
+      await cache.upsert({ ...cacheKey, insight, model: productInsightModel });
+    } catch (error) {
+      logCacheFailure("write", error);
+    }
+  }
+
+  return insight;
 }
