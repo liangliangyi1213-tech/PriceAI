@@ -9,9 +9,23 @@ export class CatalogSyncRunRepositoryError extends Error {
 
 function logFailure(operation: "create" | "complete" | "fail", error: unknown): void {
   const record = error && typeof error === "object" ? error as Record<string, unknown> : {};
-  console.error(`[PriceAI][CatalogSyncRun] ${operation} failed`, { name: typeof record.name === "string" ? record.name : "UnknownError", code: typeof record.code === "string" ? record.code : null, status: typeof record.status === "number" ? record.status : null });
+  const cause = record.cause && typeof record.cause === "object" ? record.cause as Record<string, unknown> : {};
+  // Inspect error text locally; emit only fixed classifications, never raw messages or credentials.
+  const text = [record.message, record.details, record.hint, cause.message, cause.code].filter((value) => typeof value === "string").join(" ");
+  const categories = [
+    [/fetch failed/i, "FETCH_FAILED"], [/ENOTFOUND|EAI_AGAIN/i, "DNS_FAILURE"],
+    [/ECONNREFUSED/i, "CONNECTION_REFUSED"], [/ETIMEDOUT|CONNECT_TIMEOUT|timed?\s*out/i, "TIMEOUT"],
+    [/certificate|CERT_|TLS|SSL/i, "TLS_FAILURE"], [/invalid api key|invalid jwt|JWT expired/i, "INVALID_CREDENTIAL"],
+    [/row.level security/i, "RLS_DENIED"], [/permission denied/i, "PERMISSION_DENIED"],
+    [/schema cache|does not exist/i, "SCHEMA_UNAVAILABLE"], [/Headers|ByteString|character.*greater than 255/i, "INVALID_HEADER"],
+  ] as const;
+  console.error(`[PriceAI][CatalogSyncRun] ${operation} failed`, JSON.stringify({
+    name: ["CatalogSyncConfigurationError", "TypeError", "Error", "AbortError"].includes(String(record.name)) ? record.name : "UnknownError",
+    code: typeof record.code === "string" && /^(?:[0-9A-Z]{5}|PGRST\d{3})$/.test(record.code) ? record.code : null,
+    status: typeof record.status === "number" ? record.status : null,
+    categories: categories.filter(([pattern]) => pattern.test(text)).map(([, label]) => label),
+  }));
 }
-
 export class SupabaseCatalogSyncRunRepository implements CatalogSyncRunRepository {
   async createCatalogSyncRun(input: { platform: string; query: string; dryRun: boolean; startedAt: string }): Promise<CatalogSyncRunHandle> {
     try {

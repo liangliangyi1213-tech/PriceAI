@@ -26,6 +26,7 @@ function sortResults(results: PlatformSearchResult[], sort: PlatformSearchSort |
 }
 
 function normalizeOffer(product: Product, offer: Offer): PlatformSearchResult {
+  const productUrl = offer.url === "#" ? `https://mock.priceai.local/offers/${encodeURIComponent(offer.id)}` : offer.url;
   return {
     platform: offerPlatformMap[offer.platform as keyof typeof offerPlatformMap],
     externalProductId: product.id,
@@ -38,7 +39,7 @@ function normalizeOffer(product: Product, offer: Offer): PlatformSearchResult {
     sales: offer.sales,
     rating: offer.rating,
     promotion: offer.originalPrice === undefined ? undefined : { originalPrice: offer.originalPrice },
-    productUrl: offer.url,
+    productUrl,
   };
 }
 

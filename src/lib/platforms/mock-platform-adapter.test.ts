@@ -22,7 +22,7 @@ describe("MockPlatformAdapter", () => {
       shopName: "品牌旗舰店",
       sales: 12000,
       rating: 4.8,
-      productUrl: "#",
+      productUrl: "https://mock.priceai.local/offers/apple-iphone-16-pro-256GB-%E9%BB%91%E8%89%B2%E4%BA%AC%E4%B8%9C",
     });
   });
 
