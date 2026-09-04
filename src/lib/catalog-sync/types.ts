@@ -81,4 +81,19 @@ export type CatalogSyncPreview = {
   rejectedItems: Array<{ platform: MarketplaceId; externalProductId: string; reason: string }>;
 };
 
-export type CatalogSyncRunResult = { dryRun: boolean; preview: CatalogSyncPreview; syncResult?: CatalogSyncResult };
+export type CatalogSyncRunResult = { runId: string; dryRun: boolean; preview: CatalogSyncPreview; syncResult?: CatalogSyncResult };
+
+export type CatalogSyncRunStatus = "running" | "success" | "partial_failure" | "failed";
+export type CatalogSyncRunHandle = { id: string; startedAt: string };
+export type CompleteCatalogSyncRunInput = {
+  status: "success" | "partial_failure";
+  fetchedCount: number; matchedCount: number; unmatchedCount: number; ambiguousCount: number; rejectedCount: number;
+  offerUpsertCount: number; priceSnapshotCount: number; writeFailureCount: number;
+  finishedAt: string; durationMs: number;
+};
+export type FailCatalogSyncRunInput = { code: string; summary: string; finishedAt: string; durationMs: number };
+export interface CatalogSyncRunRepository {
+  createCatalogSyncRun(input: { platform: PlatformAdapterId; query: string; dryRun: boolean; startedAt: string }): Promise<CatalogSyncRunHandle>;
+  completeCatalogSyncRun(id: string, input: CompleteCatalogSyncRunInput): Promise<void>;
+  failCatalogSyncRun(id: string, input: FailCatalogSyncRunInput): Promise<void>;
+}

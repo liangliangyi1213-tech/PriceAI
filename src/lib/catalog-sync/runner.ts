@@ -8,8 +8,13 @@ import type { Product } from "@/types/catalog";
 
 import { buildCatalogSyncPlan } from "./plan";
 import { SupabaseCatalogSyncWriter } from "./repository";
+import { SupabaseCatalogSyncRunRepository } from "./run-repository";
 import { createCatalogSyncService } from "./service";
-import type { CatalogSyncPreview, CatalogSyncRunInput, CatalogSyncRunResult, CatalogSyncWriter } from "./types";
+import type { CatalogSyncPreview, CatalogSyncRunInput, CatalogSyncRunRepository, CatalogSyncRunResult, CatalogSyncWriter } from "./types";
+
+export class CatalogSyncObservabilityError extends Error {
+  constructor() { super("同步批次记录不可用，已停止本次同步。"); this.name = "CatalogSyncObservabilityError"; }
+}
 
 function makePreview(platform: PlatformAdapterId, query: string, fetchedCount: number, plan: ReturnType<typeof buildCatalogSyncPlan>): CatalogSyncPreview {
   return {
@@ -26,23 +31,46 @@ function makePreview(platform: PlatformAdapterId, query: string, fetchedCount: n
 export function createCatalogSyncRunner({
   products = phones,
   writer = new SupabaseCatalogSyncWriter(),
+  runRepository = new SupabaseCatalogSyncRunRepository(),
   getAdapter = getPlatformAdapter,
+  now = () => new Date(),
 }: {
   products?: Product[];
   writer?: CatalogSyncWriter;
+  runRepository?: CatalogSyncRunRepository;
   getAdapter?: (platform: PlatformAdapterId) => PlatformAdapter;
+  now?: () => Date;
 } = {}) {
   return {
     async runCatalogSync(input: CatalogSyncRunInput): Promise<CatalogSyncRunResult> {
-      const adapter = getAdapter(input.platform);
+      const startedAt = now().toISOString();
+      let run;
+      try { run = await runRepository.createCatalogSyncRun({ platform: input.platform, query: input.query, dryRun: input.dryRun, startedAt }); }
+      catch { throw new CatalogSyncObservabilityError(); }
+      const finish = () => { const finishedAt = now().toISOString(); return { finishedAt, durationMs: Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt)) }; };
+      let adapter: PlatformAdapter;
+      try { adapter = getAdapter(input.platform); }
+      catch (error) {
+        const safe = toSafePlatformError(input.platform, error);
+        try { await runRepository.failCatalogSyncRun(run.id, { code: safe.name, summary: safe.message, ...finish() }); } catch { throw new CatalogSyncObservabilityError(); }
+        throw safe;
+      }
       let fetched;
       try { fetched = await adapter.searchProducts(input.query); }
-      catch (error) { throw toSafePlatformError(input.platform, error); }
+      catch (error) {
+        const safe = toSafePlatformError(input.platform, error);
+        try { await runRepository.failCatalogSyncRun(run.id, { code: safe.name, summary: safe.message, ...finish() }); } catch { throw new CatalogSyncObservabilityError(); }
+        throw safe;
+      }
       const plan = buildCatalogSyncPlan(fetched, products, input.collectedAt);
       const preview = makePreview(input.platform, input.query, fetched.length, plan);
-      if (input.dryRun) return { dryRun: true, preview };
-      const syncResult = await createCatalogSyncService({ writer, products }).persistPlan(plan);
-      return { dryRun: false, preview, syncResult };
+      const syncResult = input.dryRun ? undefined : await createCatalogSyncService({ writer, products }).persistPlan(plan);
+      const writeFailureCount = syncResult?.writeFailures.length ?? 0;
+      const status = writeFailureCount ? "partial_failure" as const : "success" as const;
+      try {
+        await runRepository.completeCatalogSyncRun(run.id, { status, fetchedCount: preview.fetchedCount, matchedCount: preview.matchedCount, unmatchedCount: preview.unmatchedCount, ambiguousCount: preview.ambiguousCount, rejectedCount: preview.rejectedCount, offerUpsertCount: syncResult?.persisted ?? preview.offerUpserts, priceSnapshotCount: syncResult?.snapshotsRecorded ?? preview.priceHistorySnapshots, writeFailureCount, ...finish() });
+      } catch { throw new CatalogSyncObservabilityError(); }
+      return { runId: run.id, dryRun: input.dryRun, preview, syncResult };
     },
   };
 }
