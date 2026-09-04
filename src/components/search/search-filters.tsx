@@ -14,6 +14,7 @@ const sortOptions: Array<{ value: ProductSearchSort; label: string }> = [
 type SearchFiltersProps = {
   brands: string[];
   searchQuery: ProductSearchQuery;
+  compareSlugs?: string[];
 };
 
 function isSelectedBrand(brand: string, selectedBrands: string[] | undefined): boolean {
@@ -61,10 +62,11 @@ function FilterFields({ brands, searchQuery }: SearchFiltersProps) {
   );
 }
 
-function FilterForm({ brands, searchQuery }: SearchFiltersProps) {
+function FilterForm({ brands, searchQuery, compareSlugs }: SearchFiltersProps) {
   return (
     <form action="/search" className="space-y-5" method="get">
       {searchQuery.query && <input name="q" type="hidden" value={searchQuery.query} />}
+      {compareSlugs?.map((slug) => <input key={slug} name="compare" type="hidden" value={slug} />)}
       <FilterFields brands={brands} searchQuery={searchQuery} />
       <div className="flex gap-3">
         <button className="min-h-11 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700" type="submit">应用筛选</button>

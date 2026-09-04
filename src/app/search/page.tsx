@@ -1,18 +1,23 @@
 import Link from "next/link";
 
+import { CompareBar, CompareToggleButton } from "@/components/compare/compare-selection";
 import { SearchFilters } from "@/components/search/search-filters";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { getProducts } from "@/lib/catalog/repository";
+import { parseCompareQuery } from "@/lib/compare/query";
 import { formatPrice } from "@/lib/pricing/offers";
 import { parseProductSearchQuery, type SearchParamRecord } from "@/lib/search/query";
 import { searchCatalog } from "@/lib/search/products";
 
 export default async function Page({ searchParams }: { searchParams: Promise<SearchParamRecord> }) {
-  const searchQuery = parseProductSearchQuery(await searchParams);
+  const currentSearchParams = await searchParams;
+  const searchQuery = parseProductSearchQuery(currentSearchParams);
   const products = await getProducts();
   const rows = searchCatalog(products, searchQuery);
   const brands = [...new Set(products.map((product) => product.brand))];
+  const productOptions = products.map((product) => ({ slug: product.slug, name: product.name }));
+  const compareSlugs = parseCompareQuery(currentSearchParams.compare).filter((slug) => products.some((product) => product.slug === slug));
   const heading = searchQuery.query ?? "全部手机";
 
   return (
@@ -24,9 +29,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
           <p>找到 {rows.length} 款符合条件的手机</p>
           <Link className="font-medium text-blue-700 hover:text-blue-800" href="/search">查看全部</Link>
         </div>
+        <CompareBar productOptions={productOptions} />
 
         <div className="mt-6 grid gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
-          <SearchFilters brands={brands} searchQuery={searchQuery} />
+          <SearchFilters brands={brands} compareSlugs={compareSlugs} searchQuery={searchQuery} />
           <section aria-label="搜索结果">
             {rows.length ? (
               <div className="grid gap-5 sm:grid-cols-2">
@@ -48,6 +54,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
                       {row.sales !== null && ` · 销量 ${row.sales}`}
                     </p>
                     <Link className="mt-5 inline-flex min-h-11 items-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700" href={`/products/${row.product.slug}`}>查看详情</Link>
+                    <CompareToggleButton productOptions={productOptions} productSlug={row.product.slug} />
                   </article>
                 ))}
               </div>
