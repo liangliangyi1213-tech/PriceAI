@@ -1,3 +1,68 @@
-import Link from"next/link";import{getProducts}from"@/lib/catalog/repository";import{searchProducts}from"@/lib/search/products";import{getLowestOffer,formatPrice}from"@/lib/pricing/offers";import{scoreVariant}from"@/lib/scoring/value-score";import{sortProducts,type SortMode}from"@/lib/ranking/products";import{SiteHeader}from"@/components/layout/site-header";import{SiteFooter}from"@/components/layout/site-footer";
-export default async function Page({searchParams}:{searchParams:Promise<{q?:string;sort?:SortMode}>}){const{q="",sort="recommended"}=await searchParams,r=sortProducts(searchProducts(await getProducts(),q).map(product=>({product,score:scoreVariant(product.variants[0]).total})),sort);return <><SiteHeader/><main className="mx-auto min-h-screen max-w-6xl px-4 py-12"><h1 className="text-3xl font-bold">正在为你搜索：{q||"全部手机"}</h1><nav className="mt-4 flex flex-wrap gap-2">{([['recommended','综合推荐'],['price','价格最低'],['rating','评分最高'],['sales','销量最高']]as const).map(([k,l])=><Link className={`rounded-full px-3 py-2 ${sort===k?'bg-blue-600 text-white':'bg-slate-100'}`} href={`/search?q=${encodeURIComponent(q)}&sort=${k}`} key={k}>{l}</Link>)}</nav>{r.length?<div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{r.map(({product:p})=>{const v=p.variants[0],o=getLowestOffer(v.offers)!,s=scoreVariant(v);return <article className="rounded-2xl border p-5" key={p.id}><div className="text-4xl">📱</div><p className="mt-3 text-blue-600">{p.brand}</p><h2 className="text-xl font-semibold">{p.name}</h2><p>{s.reason}</p><b>{formatPrice(o.price)} · 性价比 {s.total}</b><p>{v.offers.length} 个平台可用</p><Link className="mt-4 inline-flex rounded bg-blue-600 px-4 py-2 text-white" href={`/products/${p.slug}`}>查看详情</Link></article>})}</div>:<p className="mt-8">没有找到相关手机。</p>}</main><SiteFooter/></>}
+import Link from "next/link";
+
+import { SearchFilters } from "@/components/search/search-filters";
+import { SiteFooter } from "@/components/layout/site-footer";
+import { SiteHeader } from "@/components/layout/site-header";
+import { getProducts } from "@/lib/catalog/repository";
+import { formatPrice } from "@/lib/pricing/offers";
+import { parseProductSearchQuery, type SearchParamRecord } from "@/lib/search/query";
+import { searchCatalog } from "@/lib/search/products";
+
+export default async function Page({ searchParams }: { searchParams: Promise<SearchParamRecord> }) {
+  const searchQuery = parseProductSearchQuery(await searchParams);
+  const products = await getProducts();
+  const rows = searchCatalog(products, searchQuery);
+  const brands = [...new Set(products.map((product) => product.brand))];
+  const heading = searchQuery.query ?? "全部手机";
+
+  return (
+    <>
+      <SiteHeader />
+      <main className="mx-auto min-h-screen max-w-6xl px-4 py-8 sm:py-12">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-950">正在为你搜索：{heading}</h1>
+        <div className="mt-2 flex items-center justify-between gap-4 text-sm text-slate-600">
+          <p>找到 {rows.length} 款符合条件的手机</p>
+          <Link className="font-medium text-blue-700 hover:text-blue-800" href="/search">查看全部</Link>
+        </div>
+
+        <div className="mt-6 grid gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
+          <SearchFilters brands={brands} searchQuery={searchQuery} />
+          <section aria-label="搜索结果">
+            {rows.length ? (
+              <div className="grid gap-5 sm:grid-cols-2">
+                {rows.map((row) => (
+                  <article className="rounded-2xl border border-slate-200 bg-white p-5" key={row.product.id}>
+                    <div aria-hidden="true" className="text-4xl">📱</div>
+                    <p className="mt-3 text-sm font-medium text-blue-600">{row.product.brand}</p>
+                    <h2 className="mt-1 text-xl font-semibold text-slate-950">{row.product.name}</h2>
+                    <p className="mt-3 text-sm leading-6 text-slate-600">
+                      {row.lowestOffer ? `最低价来自${row.lowestOffer.platform} · ${row.lowestOffer.seller}` : "暂无有效平台报价"}
+                    </p>
+                    <p className="mt-3 text-lg font-bold text-slate-950">
+                      {row.lowestOffer ? formatPrice(row.lowestOffer.price) : "暂无报价"}
+                      <span className="ml-2 text-sm font-medium text-slate-600">· 性价比 {row.valueScore ?? "—"}</span>
+                    </p>
+                    <p className="mt-2 text-sm text-slate-600">
+                      {row.platformCount} 个平台可用
+                      {row.rating !== null && ` · 评分 ${row.rating}`}
+                      {row.sales !== null && ` · 销量 ${row.sales}`}
+                    </p>
+                    <Link className="mt-5 inline-flex min-h-11 items-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700" href={`/products/${row.product.slug}`}>查看详情</Link>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center">
+                <h2 className="text-lg font-semibold text-slate-950">没有找到符合条件的商品</h2>
+                <p className="mt-2 text-sm text-slate-600">试试放宽价格、评分或品牌筛选条件。</p>
+                <Link className="mt-5 inline-flex min-h-11 items-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700" href="/search">清除筛选，查看全部商品</Link>
+              </div>
+            )}
+          </section>
+        </div>
+      </main>
+      <SiteFooter />
+    </>
+  );
+}
 export const dynamic = "force-dynamic";
