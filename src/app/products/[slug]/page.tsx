@@ -2,8 +2,10 @@ import { notFound } from "next/navigation";
 
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
+import { PriceHistoryPanel } from "@/components/price-history/price-history-panel";
 import { getProductInsight } from "@/lib/ai/product-insight";
 import { getProductBySlug } from "@/lib/catalog/repository";
+import { getVariantPriceHistoryViewModel } from "@/lib/price-history/service";
 import { formatPrice, getLowestOffer } from "@/lib/pricing/offers";
 import { scoreVariant } from "@/lib/scoring/value-score";
 
@@ -29,7 +31,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const variant = product.variants[0];
   const lowestOffer = getLowestOffer(variant.offers);
   const score = scoreVariant(variant);
-  const insight = await getProductInsight(product, variant);
+  const [insight, priceHistory] = await Promise.all([
+    getProductInsight(product, variant),
+    getVariantPriceHistoryViewModel(variant.id),
+  ]);
 
   return (
     <>
@@ -66,6 +71,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             ))}
           </div>
         </section>
+
+        <PriceHistoryPanel view={priceHistory} />
 
         <section aria-labelledby="insight-heading" className="mt-10 rounded-2xl border border-blue-100 bg-blue-50/50 p-5 sm:p-7">
           <p className="text-sm font-semibold text-blue-700">PriceAI</p>

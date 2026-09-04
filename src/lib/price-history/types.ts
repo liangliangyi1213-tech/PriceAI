@@ -36,3 +36,29 @@ export type PriceSnapshotInput = {
   currency?: string;
   recordedAt?: string;
 };
+
+export type PriceHistoryChartPoint = PriceHistoryPoint & {
+  isCurrent: boolean;
+  isHistoricalLow: boolean;
+};
+
+export type PriceHistoryJudgmentKind =
+  | "no_history"
+  | "insufficient_history"
+  | "stable"
+  | "near_low"
+  | "low"
+  | "normal"
+  | "high";
+
+export type PriceHistoryJudgment = {
+  kind: PriceHistoryJudgmentKind;
+  label: string;
+};
+
+export type PriceHistoryViewModel = {
+  points: PriceHistoryChartPoint[];
+  stats: PriceHistoryStats;
+  judgment: PriceHistoryJudgment;
+  summary: string;
+};
