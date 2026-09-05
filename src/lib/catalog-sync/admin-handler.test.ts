@@ -15,6 +15,24 @@ function testRunRepository(): CatalogSyncRunRepository { return { createCatalogS
 function testAdapter() { return new MockPlatformAdapter(phones); }
 
 describe("catalog sync admin handler", () => {
+  it("accepts the Pinduoduo recommendation pool without requiring a keyword", async () => {
+    const runCatalogSync = vi.fn().mockResolvedValue(completed);
+    const response = await handleCatalogSyncAdminRequest(request({ platform: "pdd", dryRun: true }), { isDevelopment: true, runner: { runCatalogSync } });
+
+    expect(response.status).toBe(200);
+    expect(runCatalogSync).toHaveBeenCalledWith({ platform: "pdd", query: "推荐商品池", dryRun: true });
+  });
+
+  it("does not persist Pinduoduo recommendations before reliable offer metadata is available", async () => {
+    const runCatalogSync = vi.fn();
+    const response = await handleCatalogSyncAdminRequest(request({ platform: "pdd", dryRun: false }), { isDevelopment: true, runner: { runCatalogSync } });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "拼多多推荐商品池当前仅支持预览同步。" });
+    expect(runCatalogSync).not.toHaveBeenCalled();
+  });
+
+
   it("runs a valid development dry-run and returns only safe preview data", async () => {
     const runCatalogSync = vi.fn().mockResolvedValue(completed);
     const response = await handleCatalogSyncAdminRequest(request({ platform: "mock", query: " iphone ", dryRun: true }), { isDevelopment: true, runner: { runCatalogSync } });

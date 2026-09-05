@@ -17,10 +17,13 @@ export class CatalogSyncObservabilityError extends Error {
 }
 
 function makePreview(platform: PlatformAdapterId, query: string, fetchedCount: number, plan: ReturnType<typeof buildCatalogSyncPlan>): CatalogSyncPreview {
+  const writableMatches = plan.matchedOffers.filter(({ normalized }) =>
+    normalized.rating !== null && normalized.sales !== null && normalized.productUrl !== null,
+  );
   return {
     platform, query, fetchedCount, matchedCount: plan.summary.matched, unmatchedCount: plan.summary.unmatched,
     ambiguousCount: plan.summary.ambiguous, rejectedCount: plan.summary.rejected,
-    offerUpserts: plan.summary.matched, priceHistorySnapshots: plan.summary.matched,
+    offerUpserts: writableMatches.length, priceHistorySnapshots: writableMatches.length,
     matchedItems: plan.matchedOffers.map((item) => ({ offerIdentity: item.offerIdentity, productId: item.product.id, variantId: item.variant.id, platform: item.normalized.platform, price: item.normalized.price })),
     unmatchedItems: plan.unmatchedItems.map((item) => ({ platform: item.platform, externalProductId: item.externalProductId, title: item.title })),
     ambiguousItems: plan.ambiguousItems.map((item) => ({ platform: item.platform, externalProductId: item.externalProductId, title: item.title })),
@@ -56,7 +59,7 @@ export function createCatalogSyncRunner({
         throw safe;
       }
       let fetched;
-      try { fetched = await adapter.searchProducts(input.query); }
+      try { fetched = adapter.getRecommendedProducts ? await adapter.getRecommendedProducts() : await adapter.searchProducts(input.query); }
       catch (error) {
         const safe = toSafePlatformError(input.platform, error);
         try { await runRepository.failCatalogSyncRun(run.id, { code: safe.name, summary: safe.message, ...finish() }); } catch { throw new CatalogSyncObservabilityError(); }

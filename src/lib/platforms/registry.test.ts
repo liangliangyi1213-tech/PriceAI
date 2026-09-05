@@ -17,4 +17,11 @@ describe("platform adapter registry", () => {
       platform: "jd",
     });
   });
+
+  it("registers Pinduoduo as a recommendation product-pool adapter", () => {
+    const adapter = getPlatformAdapter("pdd");
+
+    expect(adapter.id).toBe("pdd");
+    expect(adapter.getRecommendedProducts).toBeTypeOf("function");
+  });
 });

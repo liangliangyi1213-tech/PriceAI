@@ -6,20 +6,22 @@ import { CatalogSyncObservabilityError, createCatalogSyncRunner } from "./runner
 import type { CatalogSyncRunResult } from "./types";
 
 const MAX_QUERY_LENGTH = 120;
-type Runner = { runCatalogSync(input: { platform: "mock"; query: string; dryRun: boolean }): Promise<CatalogSyncRunResult> };
+type SupportedAdminPlatform = "mock" | "pdd";
+type Runner = { runCatalogSync(input: { platform: SupportedAdminPlatform; query: string; dryRun: boolean }): Promise<CatalogSyncRunResult> };
 
 function json(body: unknown, status = 200): Response { return Response.json(body, { status, headers: { "cache-control": "no-store" } }); }
 function invalid(message: string): Response { return json({ error: message }, 400); }
 
-function parseInput(value: unknown): { platform: "mock"; query: string; dryRun: boolean } | Response {
+function parseInput(value: unknown): { platform: SupportedAdminPlatform; query: string; dryRun: boolean } | Response {
   if (!value || typeof value !== "object" || Array.isArray(value)) return invalid("请求体格式无效。");
   const body = value as Record<string, unknown>;
-  const query = typeof body.query === "string" ? body.query.trim() : "";
-  if (body.platform !== "mock") return invalid("当前管理入口仅支持 Mock 平台。");
-  if (!query) return invalid("查询词不能为空。");
+  if (body.platform !== "mock" && body.platform !== "pdd") return invalid("当前管理入口仅支持 Mock 或拼多多平台。");
+  const query = body.platform === "pdd" ? "推荐商品池" : typeof body.query === "string" ? body.query.trim() : "";
+  if (body.platform === "mock" && !query) return invalid("查询词不能为空。");
   if (query.length > MAX_QUERY_LENGTH) return invalid(`查询词不能超过 ${MAX_QUERY_LENGTH} 个字符。`);
   if (typeof body.dryRun !== "boolean") return invalid("dryRun 必须为布尔值。");
-  return { platform: "mock", query, dryRun: body.dryRun };
+  if (body.platform === "pdd" && !body.dryRun) return invalid("拼多多推荐商品池当前仅支持预览同步。");
+  return { platform: body.platform, query, dryRun: body.dryRun };
 }
 
 function safeErrorResponse(error: unknown): Response {

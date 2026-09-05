@@ -23,6 +23,46 @@ function runRepository(): CatalogSyncRunRepository {
 }
 
 describe("CatalogSyncRunner", () => {
+  it("uses a recommendation source as a product pool without passing the run query as search text", async () => {
+    const getRecommendedProducts = vi.fn().mockResolvedValue([]);
+    const recommendationAdapter: PlatformAdapter = {
+      id: "pdd",
+      searchProducts: vi.fn().mockRejectedValue(new Error("must not search")),
+      getRecommendedProducts,
+    };
+
+    await createCatalogSyncRunner({ products: phones, writer: writer(), runRepository: runRepository(), getAdapter: () => recommendationAdapter })
+      .runCatalogSync({ platform: "pdd", query: "推荐商品池", dryRun: true });
+
+    expect(getRecommendedProducts).toHaveBeenCalledOnce();
+    expect(recommendationAdapter.searchProducts).not.toHaveBeenCalled();
+  });
+
+  it("does not count matched recommendations with incomplete offer metadata as writable", async () => {
+    const recommendationAdapter: PlatformAdapter = {
+      id: "pdd",
+      searchProducts: vi.fn(),
+      getRecommendedProducts: vi.fn().mockResolvedValue([{
+        platform: "pdd",
+        externalProductId: "pdd-iphone-16-pro",
+        externalVariantId: "pdd-sign",
+        title: "Apple iPhone 16 Pro 256GB 黑色",
+        price: 7599,
+        shopName: "真实店铺",
+        sales: 1000,
+        productUrl: "",
+      }]),
+    };
+
+    const result = await createCatalogSyncRunner({ products: phones, writer: writer(), runRepository: runRepository(), getAdapter: () => recommendationAdapter })
+      .runCatalogSync({ platform: "pdd", query: "推荐商品池", dryRun: true });
+
+    expect(result.preview.matchedCount).toBe(1);
+    expect(result.preview.offerUpserts).toBe(0);
+    expect(result.preview.priceHistorySnapshots).toBe(0);
+  });
+
+
   it("creates a complete dry-run preview without calling the writer", async () => {
     const syncWriter = writer();
     const result = await createCatalogSyncRunner({ products: phones, writer: syncWriter, runRepository: runRepository(), getAdapter: () => validAdapter })

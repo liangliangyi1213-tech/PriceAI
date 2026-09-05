@@ -33,6 +33,7 @@ export type PlatformSearchResult = {
     originalPrice: number;
   };
   productUrl: string;
+  sourceMetadata?: Record<string, string | number | boolean | null>;
 };
 
 export type PlatformProductDetail = PlatformSearchResult & {
@@ -43,5 +44,6 @@ export type PlatformProductDetail = PlatformSearchResult & {
 export interface PlatformAdapter {
   readonly id: PlatformAdapterId;
   searchProducts(query: string, options?: PlatformSearchOptions): Promise<PlatformSearchResult[]>;
+  getRecommendedProducts?(options?: PlatformSearchOptions): Promise<PlatformSearchResult[]>;
   getProductDetail?(externalProductId: string): Promise<PlatformProductDetail | null>;
 }
