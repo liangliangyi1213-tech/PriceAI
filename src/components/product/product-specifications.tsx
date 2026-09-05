@@ -1,0 +1,4 @@
+export function ProductSpecifications({ specs }: { specs: Record<string, string> }) {
+  const entries = Object.entries(specs).filter(([label, value]) => label.trim() && value.trim());
+  return <section aria-labelledby="specifications-heading" className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7"><p className="text-sm font-semibold text-blue-700">商品信息</p><h2 className="mt-1 text-2xl font-bold text-slate-950" id="specifications-heading">商品规格</h2>{entries.length ? <dl className="mt-5 grid gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 sm:grid-cols-2">{entries.map(([label, value]) => <div className="grid grid-cols-[minmax(5rem,0.4fr)_1fr] gap-3 bg-white p-4 text-sm" key={label}><dt className="font-medium text-slate-600">{label}</dt><dd className="break-words text-slate-950">{value}</dd></div>)}</dl> : <p className="mt-5 rounded-xl bg-slate-50 p-5 text-sm text-slate-600">暂无商品规格数据</p>}</section>;
+}

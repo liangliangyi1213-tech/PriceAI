@@ -26,8 +26,8 @@ export function PriceHistoryPanel({ view }: { view: PriceHistoryViewModel }) {
     <section aria-labelledby="price-history-heading" className="mt-10 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-blue-700">PriceAI 价格数据</p>
-          <h2 className="mt-1 text-2xl font-bold text-slate-950" id="price-history-heading">历史价格</h2>
+          <p className="text-sm font-semibold text-blue-700">历史价格</p>
+          <h2 className="mt-1 text-2xl font-bold text-slate-950" id="price-history-heading">价格趋势</h2>
         </div>
         <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-800">{view.judgment.label}</span>
       </div>
