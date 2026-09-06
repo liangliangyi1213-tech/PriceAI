@@ -38,8 +38,11 @@ export class PlatformRateLimitError extends PlatformAdapterError {
 }
 
 export class PlatformRequestError extends PlatformAdapterError {
-  constructor(platform: PlatformAdapterId, status: number | null = null) {
+  readonly providerCode: string | number | null;
+
+  constructor(platform: PlatformAdapterId, status: number | null = null, providerCode: string | number | null = null) {
     super("PlatformRequestError", platform, `${platformLabels[platform]}平台请求失败，请稍后重试。`, status);
+    this.providerCode = providerCode;
   }
 }
 

@@ -2,7 +2,7 @@ import "server-only";
 
 import { createPinduoduoClientFromEnv, type PinduoduoClient, type PinduoduoGoods } from "@/lib/platforms/pinduoduo-client";
 import type { Product } from "@/types/catalog";
-import { selectLivePinduoduoOffers, type LivePinduoduoOffer } from "./pinduoduo-live-offer";
+import { selectLivePinduoduoOffersWithDiagnostics, type LivePinduoduoOffer } from "./pinduoduo-live-offer";
 
 const CACHE_TTL_MS = 600_000;
 const MAX_GOODS_PER_QUERY = 400;
@@ -15,7 +15,24 @@ type ServiceOptions = {
   now?: () => number;
   maxCacheEntries?: number;
   timeoutMs?: number;
+  diagnostic?: (event: PinduoduoDiagnosticEvent) => void;
 };
+
+type ApiMethod = "pdd.ddk.goods.search" | "pdd.ddk.goods.recommend.get";
+export type PinduoduoDiagnosticEvent =
+  | { event: "api_response"; method: ApiMethod; success: true; providerTotal: number; rawCount: number; parsedCount: number }
+  | { event: "api_response"; method: ApiMethod; success: false; errorCode: string | number | null }
+  | ({ event: "selection"; source: "search" | "recommend" } & import("./pinduoduo-live-offer").PinduoduoSelectionDiagnostics);
+
+function defaultDiagnostic(event: PinduoduoDiagnosticEvent): void {
+  console.info("[pdd-live]", JSON.stringify(event));
+}
+
+function safeProviderCode(error: unknown): string | number | null {
+  if (!error || typeof error !== "object") return null;
+  const code = (error as Record<string, unknown>).providerCode;
+  return typeof code === "string" || typeof code === "number" ? code : null;
+}
 
 export function createLivePinduoduoService(options: ServiceOptions = {}) {
   const cache: PinduoduoGoodsCache = options.cache ?? new Map();
@@ -24,6 +41,7 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
     ? Math.max(1, Math.floor(options.maxCacheEntries)) : 100;
   const timeoutMs = options.timeoutMs !== undefined && Number.isFinite(options.timeoutMs)
     ? Math.max(1, Math.floor(options.timeoutMs)) : DEFAULT_REQUEST_DEADLINE_MS;
+  const diagnostic = options.diagnostic ?? defaultDiagnostic;
   return async function getLivePinduoduoOffers(products: readonly Product[], query: string): Promise<Map<string, LivePinduoduoOffer[]>> {
     const key = query.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
     if (!key) return new Map();
@@ -35,12 +53,27 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
         if (entry.expiresAt <= timestamp) cache.delete(cachedKey);
       }
       let goods = cache.get(key)?.goods;
+      let source: "search" | "recommend" = "search";
       if (!goods) {
         const pool = await withDeadline(async (signal) => {
-          const search = await client.searchGoods(key, { limit: 100 }, { signal });
-          return search.goods.length
-            ? search.goods
-            : (await client.getRecommendedGoods({ limit: MAX_GOODS_PER_QUERY }, { signal })).goods;
+          let search;
+          try {
+            search = await client.searchGoods(key, { limit: 100 }, { signal });
+            diagnostic({ event: "api_response", method: "pdd.ddk.goods.search", success: true, providerTotal: search.total, rawCount: search.rawCount, parsedCount: search.goods.length });
+          } catch (error) {
+            diagnostic({ event: "api_response", method: "pdd.ddk.goods.search", success: false, errorCode: safeProviderCode(error) });
+            throw error;
+          }
+          if (search.goods.length) return search.goods;
+          source = "recommend";
+          try {
+            const recommend = await client.getRecommendedGoods({ limit: MAX_GOODS_PER_QUERY }, { signal });
+            diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: true, providerTotal: recommend.total, rawCount: recommend.rawCount, parsedCount: recommend.goods.length });
+            return recommend.goods;
+          } catch (error) {
+            diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: false, errorCode: safeProviderCode(error) });
+            throw error;
+          }
         }, timeoutMs);
         // Whitelist parsed public fields. Never retain request signing material,
         // goods_sign, response envelopes, arbitrary extra properties or errors.
@@ -49,7 +82,9 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
         while (cache.size >= maxEntries) cache.delete(cache.keys().next().value!);
         cache.set(key, { goods, expiresAt: now() + CACHE_TTL_MS });
       }
-      return selectLivePinduoduoOffers(products, key, goods);
+      const selected = selectLivePinduoduoOffersWithDiagnostics(products, key, goods);
+      diagnostic({ event: "selection", source, ...selected.diagnostics });
+      return selected.offers;
     } catch {
       // An optional live source must never replace or break the catalog.
       return new Map();

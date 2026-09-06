@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { phones } from "@/data/phones";
 import type { PinduoduoGoods } from "@/lib/platforms/pinduoduo-client";
-import { selectComparablePinduoduoPrice, selectLivePinduoduoOffers } from "./pinduoduo-live-offer";
+import { selectComparablePinduoduoPrice, selectLivePinduoduoOffers, selectLivePinduoduoOffersWithDiagnostics } from "./pinduoduo-live-offer";
 import { searchCatalog } from "./products";
 
 const product = phones.find((item) => item.slug === "apple-iphone-16")!;
@@ -96,6 +96,21 @@ describe("live Pinduoduo offers", () => {
   });
   it("excludes accessories, unrelated goods, and unpriced goods", () => {
     expect(selectLivePinduoduoOffers([product], "iphone16", [goods({ goodsName: "iPhone16 手机壳" }), goods({ goodsName: "iPhone15 手机" }), goods({ minNormalPrice: 0 })]).size).toBe(0);
+  });
+  it("reports aggregate filtering stages without retaining catalog or listing details", () => {
+    const result = selectLivePinduoduoOffersWithDiagnostics([product], "iphone16", [
+      goods({ goodsId: "valid" }),
+      goods({ goodsId: "case", goodsName: "iPhone16 手机壳" }),
+      goods({ goodsId: "other", goodsName: "iPhone15 手机" }),
+      goods({ goodsId: "price", minNormalPrice: 0 }),
+      goods({ goodsId: "valid" }),
+    ]);
+    expect(result.diagnostics).toEqual({
+      inputCount: 5, accessoryCount: 1, unrelatedCount: 1, invalidPriceCount: 1,
+      invalidIdentityCount: 0, eligibleCount: 2, deduplicatedCount: 1,
+      selectedCount: 1, matchedProductCount: 1, matchedVariantCount: 1,
+    });
+    expect(JSON.stringify(result.diagnostics)).not.toMatch(/iphone|品牌商城|goodsId|title/i);
   });
   it("sorts by relevance, then price, sales, goodsId and deduplicates before Top 5", () => {
     const input = [

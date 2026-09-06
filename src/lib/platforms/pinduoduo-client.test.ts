@@ -86,6 +86,7 @@ describe("Pinduoduo response parsing", () => {
       goods_basic_detail_response: { total: 734, list: [rawGoods] },
     })).toEqual({
       total: 734,
+      rawCount: 1,
       goods: [{
         goodsId: "123456789",
         goodsSign: "test_goods_sign",
@@ -110,7 +111,21 @@ describe("Pinduoduo response parsing", () => {
   it("rejects provider error responses without exposing their raw message", () => {
     expect(() => parsePinduoduoRecommendResponse({
       error_response: { error_code: 10000, error_msg: "secret provider detail" },
-    })).toThrowError("拼多多平台请求失败，请稍后重试。");
+    })).toThrowError(expect.objectContaining({
+      message: "拼多多平台请求失败，请稍后重试。",
+      providerCode: 10000,
+    }));
+  });
+
+  it("reports raw result count separately from valid parsed goods", () => {
+    const result = parsePinduoduoRecommendResponse({
+      goods_basic_detail_response: {
+        total: 2,
+        list: [rawGoods, { goods_id: 2, goods_name: "缺少店铺和价格" }],
+      },
+    });
+    expect(result.rawCount).toBe(2);
+    expect(result.goods).toHaveLength(1);
   });
 });
 
@@ -120,6 +135,7 @@ describe("Pinduoduo search response parsing", () => {
       goods_search_response: { total_count: 23, goods_list: [rawSearchGoods] },
     })).toEqual({
       total: 23,
+      rawCount: 1,
       goods: [expect.objectContaining({
         goodsId: "123456789",
         minNormalPrice: 199.99,

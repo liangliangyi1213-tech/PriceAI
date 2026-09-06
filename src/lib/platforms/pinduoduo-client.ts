@@ -41,6 +41,8 @@ export type PinduoduoRecommendedGoods = Omit<PinduoduoGoods, "fetchedAt"> & { fe
 
 export type PinduoduoGoodsResponse = {
   total: number;
+  /** Number of entries in the provider list before public-field validation. */
+  rawCount: number;
   goods: PinduoduoGoods[];
 };
 
@@ -155,13 +157,18 @@ function parsePinduoduoGoodsResponse(
 ): PinduoduoGoodsResponse {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new PlatformRequestError("pdd");
   const root = value as Record<string, unknown>;
-  if (root.error_response) throw new PlatformRequestError("pdd");
+  if (root.error_response && typeof root.error_response === "object" && !Array.isArray(root.error_response)) {
+    const providerCode = finiteNumber((root.error_response as Record<string, unknown>).error_code)
+      ?? optionalString((root.error_response as Record<string, unknown>).error_code);
+    throw new PlatformRequestError("pdd", null, providerCode);
+  }
   const response = root[responseKey];
   if (!response || typeof response !== "object" || Array.isArray(response)) throw new PlatformRequestError("pdd");
   const payload = response as Record<string, unknown>;
   const list = Array.isArray(payload[listKey]) ? payload[listKey] : [];
   return {
     total: Math.max(0, Math.floor(finiteNumber(payload[totalKey]) ?? list.length)),
+    rawCount: list.length,
     goods: list.map((item) => parseGoods(item, fetchedAt)).filter((item): item is PinduoduoGoods => item !== null),
   };
 }

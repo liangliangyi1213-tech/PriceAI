@@ -14,7 +14,7 @@ const goods: PinduoduoGoods = {
   hasCoupon: false, couponPrice: null, couponMinOrderAmount: null, minNormalPrice: 5000,
   promotionRate: 20, fetchedAt: new Date("2026-09-05T00:00:00Z"),
 };
-const response = (items = [goods]) => ({ total: items.length, goods: items });
+const response = (items = [goods]) => ({ total: items.length, rawCount: items.length, goods: items });
 const clientFixture = () => ({ searchGoods: vi.fn().mockResolvedValue(response()), getRecommendedGoods: vi.fn().mockResolvedValue(response()) });
 
 afterEach(() => vi.unstubAllEnvs());
@@ -44,6 +44,28 @@ describe("live Pinduoduo service", () => {
     expect(result.get(product.id)?.[0].goodsId).toBe("123");
     expect(client.getRecommendedGoods).toHaveBeenCalledWith({ limit: 400 }, { signal: expect.any(AbortSignal) });
     expect(client.searchGoods.mock.invocationCallOrder[0]).toBeLessThan(client.getRecommendedGoods.mock.invocationCallOrder[0]);
+  });
+
+  it("emits safe response and selection diagnostics for recommendation fallback", async () => {
+    const client = clientFixture();
+    client.searchGoods.mockResolvedValue(response([]));
+    const events: unknown[] = [];
+    await createLivePinduoduoService({ client, diagnostic: (event) => events.push(event) })([product], "iphone16");
+    expect(events).toEqual([
+      { event: "api_response", method: "pdd.ddk.goods.search", success: true, providerTotal: 0, rawCount: 0, parsedCount: 0 },
+      { event: "api_response", method: "pdd.ddk.goods.recommend.get", success: true, providerTotal: 1, rawCount: 1, parsedCount: 1 },
+      { event: "selection", source: "recommend", inputCount: 1, accessoryCount: 0, unrelatedCount: 0, invalidPriceCount: 0, invalidIdentityCount: 0, eligibleCount: 1, deduplicatedCount: 1, selectedCount: 1, matchedProductCount: 1, matchedVariantCount: 1 },
+    ]);
+    expect(JSON.stringify(events)).not.toMatch(/iphone|123|品牌商城|private/i);
+  });
+
+  it("emits only a safe provider error code on failure", async () => {
+    const client = clientFixture();
+    client.searchGoods.mockRejectedValue(Object.assign(new Error("private request"), { providerCode: 10019 }));
+    const events: unknown[] = [];
+    await createLivePinduoduoService({ client, diagnostic: (event) => events.push(event) })([product], "iphone16");
+    expect(events).toEqual([{ event: "api_response", method: "pdd.ddk.goods.search", success: false, errorCode: 10019 }]);
+    expect(JSON.stringify(events)).not.toContain("private request");
   });
 
   it("returns empty for missing environment configuration", async () => {

@@ -1,6 +1,6 @@
 import type { PinduoduoGoods } from "@/lib/platforms/pinduoduo-client";
 import type { Product } from "@/types/catalog";
-import { pinduoduoTokens, scorePinduoduoRelevance } from "./pinduoduo-relevance";
+import { classifyPinduoduoGoods, pinduoduoTokens, scorePinduoduoRelevance } from "./pinduoduo-relevance";
 
 type ComparablePrice = { price: number; normalPrice?: number; groupPrice?: number; couponPrice?: number };
 
@@ -25,6 +25,19 @@ export type LivePinduoduoOffer = ComparablePrice & {
   source: "live";
   fetchedAt: string;
   relevance: number;
+};
+
+export type PinduoduoSelectionDiagnostics = {
+  inputCount: number;
+  accessoryCount: number;
+  unrelatedCount: number;
+  invalidPriceCount: number;
+  invalidIdentityCount: number;
+  eligibleCount: number;
+  deduplicatedCount: number;
+  selectedCount: number;
+  matchedProductCount: number;
+  matchedVariantCount: number;
 };
 
 function positive(value: unknown): value is number {
@@ -89,18 +102,30 @@ function compareOffers(left: LivePinduoduoOffer, right: LivePinduoduoOffer): num
     || compareText(JSON.stringify(left), JSON.stringify(right));
 }
 
-export function selectLivePinduoduoOffers(products: readonly Product[], query: string, goods: readonly PinduoduoGoods[], limitPerProduct = 5): Map<string, LivePinduoduoOffer[]> {
+export function selectLivePinduoduoOffersWithDiagnostics(products: readonly Product[], query: string, goods: readonly PinduoduoGoods[], limitPerProduct = 5): { offers: Map<string, LivePinduoduoOffer[]>; diagnostics: PinduoduoSelectionDiagnostics } {
   const results = new Map<string, LivePinduoduoOffer[]>();
+  const diagnostics: PinduoduoSelectionDiagnostics = {
+    inputCount: goods.length, accessoryCount: 0, unrelatedCount: 0,
+    invalidPriceCount: 0, invalidIdentityCount: 0, eligibleCount: 0,
+    deduplicatedCount: 0, selectedCount: 0, matchedProductCount: 0, matchedVariantCount: 0,
+  };
   const limit = Number.isFinite(limitPerProduct) ? Math.max(0, Math.floor(limitPerProduct)) : 5;
-  if (!query.trim() || limit === 0) return results;
+  if (!query.trim() || limit === 0) return { offers: results, diagnostics };
   for (const product of products) {
     const offers: LivePinduoduoOffer[] = [];
     for (const item of goods) {
+      const classification = classifyPinduoduoGoods(query, product, item);
+      if (classification === "accessory") { diagnostics.accessoryCount += 1; continue; }
+      if (classification === "unrelated") { diagnostics.unrelatedCount += 1; continue; }
       const relevance = scorePinduoduoRelevance(query, product, item);
       const prices = selectComparablePinduoduoPrice(item);
-      if (relevance < 100 || !prices || !item.goodsId.trim() || !Number.isFinite(item.fetchedAt.getTime())) continue;
+      if (relevance < 100) { diagnostics.unrelatedCount += 1; continue; }
+      if (!prices) { diagnostics.invalidPriceCount += 1; continue; }
+      if (!item.goodsId.trim() || !Number.isFinite(item.fetchedAt.getTime())) { diagnostics.invalidIdentityCount += 1; continue; }
+      const variantId = matchingVariantId(product, item.goodsName);
+      diagnostics.eligibleCount += 1;
       offers.push({
-        productId: product.id, variantId: matchingVariantId(product, item.goodsName),
+        productId: product.id, variantId,
         goodsId: item.goodsId, title: item.goodsName,
         image: item.goodsImageUrl ?? item.goodsThumbnailUrl, merchant: item.mallName,
         merchantType: item.merchantType, ...prices, hasCoupon: item.hasCoupon,
@@ -120,7 +145,17 @@ export function selectLivePinduoduoOffers(products: readonly Product[], query: s
       seen.add(offer.goodsId);
       return true;
     }).slice(0, limit);
-    if (selected.length) results.set(product.id, selected);
+    diagnostics.deduplicatedCount += seen.size;
+    diagnostics.selectedCount += selected.length;
+    diagnostics.matchedVariantCount += selected.filter((offer) => offer.variantId !== null).length;
+    if (selected.length) {
+      diagnostics.matchedProductCount += 1;
+      results.set(product.id, selected);
+    }
   }
-  return results;
+  return { offers: results, diagnostics };
+}
+
+export function selectLivePinduoduoOffers(products: readonly Product[], query: string, goods: readonly PinduoduoGoods[], limitPerProduct = 5): Map<string, LivePinduoduoOffer[]> {
+  return selectLivePinduoduoOffersWithDiagnostics(products, query, goods, limitPerProduct).offers;
 }
