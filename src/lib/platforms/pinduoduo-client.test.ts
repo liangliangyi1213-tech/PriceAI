@@ -87,6 +87,7 @@ describe("Pinduoduo response parsing", () => {
     })).toEqual({
       total: 734,
       rawCount: 1,
+      parseDiagnostics: { missingGoodsIdCount: 0, missingNameCount: 0, missingMallNameCount: 0, missingNormalPriceCount: 0, missingGroupPriceCount: 1, noComparablePriceCount: 0 },
       goods: [{
         goodsId: "123456789",
         goodsSign: "test_goods_sign",
@@ -126,6 +127,24 @@ describe("Pinduoduo response parsing", () => {
     });
     expect(result.rawCount).toBe(2);
     expect(result.goods).toHaveLength(1);
+    expect(result.parseDiagnostics).toEqual({
+      missingGoodsIdCount: 0, missingNameCount: 0, missingMallNameCount: 1,
+      missingNormalPriceCount: 1, missingGroupPriceCount: 2, noComparablePriceCount: 1,
+    });
+  });
+
+  it("diagnoses a valid group price that is rejected only because normal price is absent", () => {
+    const result = parsePinduoduoSearchResponse({
+      goods_search_response: {
+        total_count: 1,
+        goods_list: [{ ...rawGoods, min_normal_price: undefined, min_group_price: 759900 }],
+      },
+    });
+    expect(result.goods).toHaveLength(0);
+    expect(result.parseDiagnostics).toEqual({
+      missingGoodsIdCount: 0, missingNameCount: 0, missingMallNameCount: 0,
+      missingNormalPriceCount: 1, missingGroupPriceCount: 0, noComparablePriceCount: 0,
+    });
   });
 });
 
@@ -136,6 +155,7 @@ describe("Pinduoduo search response parsing", () => {
     })).toEqual({
       total: 23,
       rawCount: 1,
+      parseDiagnostics: { missingGoodsIdCount: 0, missingNameCount: 0, missingMallNameCount: 0, missingNormalPriceCount: 0, missingGroupPriceCount: 0, noComparablePriceCount: 0 },
       goods: [expect.objectContaining({
         goodsId: "123456789",
         minNormalPrice: 199.99,

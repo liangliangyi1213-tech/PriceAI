@@ -14,7 +14,8 @@ const goods: PinduoduoGoods = {
   hasCoupon: false, couponPrice: null, couponMinOrderAmount: null, minNormalPrice: 5000,
   promotionRate: 20, fetchedAt: new Date("2026-09-05T00:00:00Z"),
 };
-const response = (items = [goods]) => ({ total: items.length, rawCount: items.length, goods: items });
+const emptyParseDiagnostics = { missingGoodsIdCount: 0, missingNameCount: 0, missingMallNameCount: 0, missingNormalPriceCount: 0, missingGroupPriceCount: 0, noComparablePriceCount: 0 };
+const response = (items = [goods]) => ({ total: items.length, rawCount: items.length, parseDiagnostics: emptyParseDiagnostics, goods: items });
 const clientFixture = () => ({ searchGoods: vi.fn().mockResolvedValue(response()), getRecommendedGoods: vi.fn().mockResolvedValue(response()) });
 
 afterEach(() => vi.unstubAllEnvs());
@@ -52,8 +53,8 @@ describe("live Pinduoduo service", () => {
     const events: unknown[] = [];
     await createLivePinduoduoService({ client, diagnostic: (event) => events.push(event) })([product], "iphone16");
     expect(events).toEqual([
-      { event: "api_response", method: "pdd.ddk.goods.search", success: true, providerTotal: 0, rawCount: 0, parsedCount: 0 },
-      { event: "api_response", method: "pdd.ddk.goods.recommend.get", success: true, providerTotal: 1, rawCount: 1, parsedCount: 1 },
+      { event: "api_response", method: "pdd.ddk.goods.search", success: true, providerTotal: 0, rawCount: 0, parsedCount: 0, ...emptyParseDiagnostics },
+      { event: "api_response", method: "pdd.ddk.goods.recommend.get", success: true, providerTotal: 1, rawCount: 1, parsedCount: 1, ...emptyParseDiagnostics },
       { event: "selection", source: "recommend", inputCount: 1, accessoryCount: 0, unrelatedCount: 0, invalidPriceCount: 0, invalidIdentityCount: 0, eligibleCount: 1, deduplicatedCount: 1, selectedCount: 1, matchedProductCount: 1, matchedVariantCount: 1 },
     ]);
     expect(JSON.stringify(events)).not.toMatch(/iphone|123|品牌商城|private/i);

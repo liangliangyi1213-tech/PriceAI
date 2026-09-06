@@ -43,7 +43,17 @@ export type PinduoduoGoodsResponse = {
   total: number;
   /** Number of entries in the provider list before public-field validation. */
   rawCount: number;
+  parseDiagnostics: PinduoduoParseDiagnostics;
   goods: PinduoduoGoods[];
+};
+
+export type PinduoduoParseDiagnostics = {
+  missingGoodsIdCount: number;
+  missingNameCount: number;
+  missingMallNameCount: number;
+  missingNormalPriceCount: number;
+  missingGroupPriceCount: number;
+  noComparablePriceCount: number;
 };
 
 /** @deprecated Use PinduoduoGoodsResponse. Kept for existing client consumers. */
@@ -148,6 +158,26 @@ function parseGoods(value: unknown, fetchedAt: Date): PinduoduoGoods | null {
   };
 }
 
+function parseDiagnostics(list: readonly unknown[]): PinduoduoParseDiagnostics {
+  const diagnostics: PinduoduoParseDiagnostics = {
+    missingGoodsIdCount: 0, missingNameCount: 0, missingMallNameCount: 0,
+    missingNormalPriceCount: 0, missingGroupPriceCount: 0, noComparablePriceCount: 0,
+  };
+  for (const value of list) {
+    const item = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+    const goodsId = finiteNumber(item.goods_id) ?? optionalString(item.goods_id);
+    const normalPrice = fenToYuan(item.min_normal_price);
+    const groupPrice = fenToYuan(item.min_group_price);
+    if (goodsId === null) diagnostics.missingGoodsIdCount += 1;
+    if (!optionalString(item.goods_name)) diagnostics.missingNameCount += 1;
+    if (!optionalString(item.mall_name)) diagnostics.missingMallNameCount += 1;
+    if (normalPrice === null || normalPrice <= 0) diagnostics.missingNormalPriceCount += 1;
+    if (groupPrice === null || groupPrice <= 0) diagnostics.missingGroupPriceCount += 1;
+    if ((normalPrice === null || normalPrice <= 0) && (groupPrice === null || groupPrice <= 0)) diagnostics.noComparablePriceCount += 1;
+  }
+  return diagnostics;
+}
+
 function parsePinduoduoGoodsResponse(
   value: unknown,
   responseKey: string,
@@ -169,6 +199,7 @@ function parsePinduoduoGoodsResponse(
   return {
     total: Math.max(0, Math.floor(finiteNumber(payload[totalKey]) ?? list.length)),
     rawCount: list.length,
+    parseDiagnostics: parseDiagnostics(list),
     goods: list.map((item) => parseGoods(item, fetchedAt)).filter((item): item is PinduoduoGoods => item !== null),
   };
 }

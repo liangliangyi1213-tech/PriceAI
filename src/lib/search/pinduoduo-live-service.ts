@@ -20,7 +20,7 @@ type ServiceOptions = {
 
 type ApiMethod = "pdd.ddk.goods.search" | "pdd.ddk.goods.recommend.get";
 export type PinduoduoDiagnosticEvent =
-  | { event: "api_response"; method: ApiMethod; success: true; providerTotal: number; rawCount: number; parsedCount: number }
+  | ({ event: "api_response"; method: ApiMethod; success: true; providerTotal: number; rawCount: number; parsedCount: number } & import("@/lib/platforms/pinduoduo-client").PinduoduoParseDiagnostics)
   | { event: "api_response"; method: ApiMethod; success: false; errorCode: string | number | null }
   | ({ event: "selection"; source: "search" | "recommend" } & import("./pinduoduo-live-offer").PinduoduoSelectionDiagnostics);
 
@@ -59,7 +59,7 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
           let search;
           try {
             search = await client.searchGoods(key, { limit: 100 }, { signal });
-            diagnostic({ event: "api_response", method: "pdd.ddk.goods.search", success: true, providerTotal: search.total, rawCount: search.rawCount, parsedCount: search.goods.length });
+            diagnostic({ event: "api_response", method: "pdd.ddk.goods.search", success: true, providerTotal: search.total, rawCount: search.rawCount, parsedCount: search.goods.length, ...search.parseDiagnostics });
           } catch (error) {
             diagnostic({ event: "api_response", method: "pdd.ddk.goods.search", success: false, errorCode: safeProviderCode(error) });
             throw error;
@@ -68,7 +68,7 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
           source = "recommend";
           try {
             const recommend = await client.getRecommendedGoods({ limit: MAX_GOODS_PER_QUERY }, { signal });
-            diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: true, providerTotal: recommend.total, rawCount: recommend.rawCount, parsedCount: recommend.goods.length });
+            diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: true, providerTotal: recommend.total, rawCount: recommend.rawCount, parsedCount: recommend.goods.length, ...recommend.parseDiagnostics });
             return recommend.goods;
           } catch (error) {
             diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: false, errorCode: safeProviderCode(error) });
