@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { PriceAIScore } from "@/components/home/priceai-score";
+import { LivePinduoduoOffers } from "@/components/search/live-pinduoduo-offers";
 import { formatPrice } from "@/lib/pricing/offers";
 import type { ProductSearchRow } from "@/lib/search/products";
 import type { Offer } from "@/types/catalog";
@@ -13,11 +14,12 @@ function OfferRow({ offer, lowestId }: { offer: Offer; lowestId?: string }) {
 }
 
 export function SearchProductCard({ row, children }: { row: ProductSearchRow; children?: ReactNode }) {
-  const { product, lowestOffer } = row;
+  const { product, lowestOffer, displayLowestPrice, livePinduoduoOffers } = row;
   const { variant, offers } = productCardDetails(row);
   const href = `/products/${product.slug}`;
   const specification = specificationSummary(product.category, variant);
   const defaultVariant = product.variants[0];
+  const hasComparableLiveOffer = Boolean(variant && livePinduoduoOffers.some((offer) => offer.variantId === variant.id));
   const differentDetailVariant = variant && defaultVariant && variant.id !== defaultVariant.id;
   const defaultSpecification = specificationSummary(product.category, defaultVariant);
   const updatedAt = lowestOffer?.updatedAt;
@@ -39,8 +41,8 @@ export function SearchProductCard({ row, children }: { row: ProductSearchRow; ch
         {specification ? <p className="mt-1 text-xs leading-5 text-slate-500">商品规格：{specification}</p> : null}
 
         <div className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <p className="text-3xl font-bold tracking-tight text-orange-700">{lowestOffer ? formatPrice(lowestOffer.price) : <span className="text-lg text-slate-600">暂无有效报价</span>}</p>
-          <span className="text-xs text-slate-500">当前已收录最低价</span>
+          <p className="text-3xl font-bold tracking-tight text-orange-700">{displayLowestPrice !== null ? formatPrice(displayLowestPrice) : <span className="text-lg text-slate-600">暂无有效报价</span>}</p>
+          <span className="text-xs text-slate-500">{hasComparableLiveOffer ? "当前可比最低价" : "当前已收录最低价"}</span>
         </div>
 
         <div className="mt-3"><PriceAIScore score={row.valueScore} size="prominent" /></div>
@@ -58,6 +60,7 @@ export function SearchProductCard({ row, children }: { row: ProductSearchRow; ch
             {offers.length > 3 ? <details className="mt-2"><summary className="min-h-11 cursor-pointer py-3 text-xs text-blue-700">展开其余 {offers.length - 3} 个平台报价</summary><ul className="mt-1 grid gap-1.5">{offers.slice(3).map((offer) => <OfferRow key={offer.platform} lowestId={lowestOffer?.id} offer={offer} />)}</ul></details> : null}
           </div>
         ) : null}
+        <LivePinduoduoOffers offers={livePinduoduoOffers} />
         <div className="mt-auto pt-3">
           {differentDetailVariant ? <p className="mb-2 rounded-lg bg-amber-50 p-2 text-xs leading-5 text-amber-800">详情与历史记录默认展示：{defaultSpecification}，与本卡报价规格不同</p> : null}
           <Link className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-slate-600 hover:text-blue-700" href={`${href}#price-history-heading`} prefetch={false}>{differentDetailVariant ? "查看默认规格历史价格" : "查看历史价格"} <span aria-hidden="true">↗</span></Link>

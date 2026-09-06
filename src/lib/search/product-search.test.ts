@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { phones } from "@/data/phones";
 import type { Product } from "@/types/catalog";
 
+import type { LivePinduoduoOffer } from "./pinduoduo-live-offer";
 import { parseProductSearchQuery } from "./query";
 import { searchCatalog } from "./products";
 
@@ -14,6 +15,26 @@ function productWithoutOffers(): Product {
     slug: "unavailable-phone",
     name: "无报价测试手机",
     variants: source.variants.map((variant) => ({ ...variant, id: `${variant.id}-empty`, offers: [] })),
+  };
+}
+
+function liveOffer(productId: string, price: number, variantId: string | null = null): LivePinduoduoOffer {
+  return {
+    productId,
+    variantId,
+    goodsId: `live-${productId}`,
+    title: "实时商品",
+    image: null,
+    merchant: "测试商家",
+    merchantType: null,
+    hasCoupon: false,
+    salesTip: null,
+    realtimeSalesTip: null,
+    sales: null,
+    price,
+    source: "live",
+    fetchedAt: "2026-09-05T00:00:00.000Z",
+    relevance: 500,
   };
 }
 
@@ -53,6 +74,53 @@ describe("ProductSearchQuery parsing", () => {
 });
 
 describe("searchCatalog", () => {
+  it("uses a lower live Pinduoduo price for display, price filtering, and price sorting only", () => {
+    const liveProduct = structuredClone(phones[0]);
+    const comparisonProduct = structuredClone(phones[1]);
+    liveProduct.id = "live-price-product";
+    comparisonProduct.id = "comparison-product";
+    for (const offer of liveProduct.variants.flatMap((variant) => variant.offers)) offer.price = 8_000;
+    for (const offer of comparisonProduct.variants.flatMap((variant) => variant.offers)) offer.price = 3_000;
+    const baseline = searchCatalog([liveProduct], { sort: "relevance" })[0];
+    const baselineVariant = liveProduct.variants.find((variant) => variant.offers.some((offer) => offer.id === baseline.lowestOffer?.id))!;
+    const liveOffers = new Map([[liveProduct.id, [liveOffer(liveProduct.id, 2_000, baselineVariant.id)]]]);
+
+    const sorted = searchCatalog([comparisonProduct, liveProduct], { sort: "price_asc" }, liveOffers);
+    const filtered = searchCatalog([comparisonProduct, liveProduct], { maxPrice: 2_500, sort: "price_asc" }, liveOffers);
+    const integrated = sorted[0];
+
+    expect(sorted.map((row) => row.product.id)).toEqual([liveProduct.id, comparisonProduct.id]);
+    expect(filtered.map((row) => row.product.id)).toEqual([liveProduct.id]);
+    expect(integrated.displayLowestPrice).toBe(2_000);
+    expect(integrated.livePinduoduoOffers).toEqual(liveOffers.get(liveProduct.id));
+    expect(integrated.lowestOffer).toEqual(baseline.lowestOffer);
+    expect(integrated.valueScore).toBe(baseline.valueScore);
+    expect(integrated.rating).toBe(baseline.rating);
+    expect(integrated.sales).toBe(baseline.sales);
+    expect(integrated.platformCount).toBe(baseline.platformCount);
+    expect(integrated.product.variants).toEqual(baseline.product.variants);
+    expect(integrated).not.toHaveProperty("reviews");
+  });
+
+  it("does not use an unknown or different live SKU as the card headline price", () => {
+    const product = structuredClone(phones.find((item) => item.slug === "apple-iphone-16-pro")!);
+    const baseline = searchCatalog([product], { sort: "relevance" })[0];
+    const unknownSku = liveOffer(product.id, 9.9, null);
+    const differentSku = liveOffer(product.id, 99, "another-variant");
+
+    const row = searchCatalog([product], { sort: "relevance" }, new Map([[product.id, [unknownSku, differentSku]]] ))[0];
+
+    expect(row.livePinduoduoOffers).toEqual([unknownSku, differentSku]);
+    expect(row.displayLowestPrice).toBe(baseline.lowestOffer?.price);
+  });
+
+  it("keeps the persisted catalog price fallback when no live data is supplied", () => {
+    const row = searchCatalog([phones[0]], { sort: "relevance" })[0];
+
+    expect(row.livePinduoduoOffers).toEqual([]);
+    expect(row.displayLowestPrice).toBe(row.lowestOffer?.price);
+  });
+
   it("matches product names regardless of case or extra spaces", () => {
     const rows = searchCatalog(phones, { query: "  IPHONE   16 ", sort: "relevance" });
 

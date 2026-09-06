@@ -10,6 +10,7 @@ import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { getProducts } from "@/lib/catalog/repository";
 import { parseCompareQuery } from "@/lib/compare/query";
+import { getLivePinduoduoOffers } from "@/lib/search/pinduoduo-live-service";
 import { parseProductSearchQuery, type SearchParamRecord } from "@/lib/search/query";
 import { searchCatalog } from "@/lib/search/products";
 
@@ -17,7 +18,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
   const currentSearchParams = await searchParams;
   const searchQuery = parseProductSearchQuery(currentSearchParams);
   const products = await getProducts();
-  const rows = searchCatalog(products, searchQuery);
+  const liveOffersByProduct = searchQuery.query
+    ? await getLivePinduoduoOffers(products, searchQuery.query)
+    : undefined;
+  const rows = searchCatalog(products, searchQuery, liveOffersByProduct);
   const brands = [...new Set(products.map((product) => product.brand))];
   const categories = [...new Set(products.map((product) => product.category))];
   const productOptions = products.map((product) => ({ slug: product.slug, name: product.name }));

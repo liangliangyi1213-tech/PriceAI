@@ -24,6 +24,25 @@ const goods = {
 };
 
 describe("PinduoduoAdapter", () => {
+  it("maps keyword search independently from the recommendation pool", async () => {
+    const client = {
+      searchGoods: vi.fn().mockResolvedValue({ total: 1, goods: [goods] }),
+      getRecommendedGoods: vi.fn(),
+    };
+    const adapter = new PinduoduoAdapter({ client });
+    await expect(adapter.searchGoods("测试商品", { limit: 12, page: 2 })).resolves.toEqual([
+      expect.objectContaining({ platform: "pdd", externalProductId: "123456789", price: 109.99, sales: 120000 }),
+    ]);
+    expect(client.searchGoods).toHaveBeenCalledWith("测试商品", { limit: 12, page: 2 });
+    expect(client.getRecommendedGoods).not.toHaveBeenCalled();
+  });
+
+  it("rejects keyword search safely without configuration or on API failure", async () => {
+    await expect(new PinduoduoAdapter({ client: null }).searchGoods("phone")).rejects.toMatchObject({ name: "PlatformAuthError" });
+    const client = { getRecommendedGoods: vi.fn(), searchGoods: vi.fn().mockRejectedValue(new Error("private request")) };
+    await expect(new PinduoduoAdapter({ client }).searchGoods("phone")).rejects.toMatchObject({ name: "PlatformRequestError" });
+  });
+
   it("maps a recommended good into the existing platform result shape", () => {
     expect(mapPinduoduoGoods(goods)).toEqual({
       platform: "pdd",

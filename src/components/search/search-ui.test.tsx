@@ -1,8 +1,34 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { Fragment } from "react";
 import { describe, expect, it } from "vitest";
 import { phones } from "@/data/phones";
+import type { LivePinduoduoOffer } from "@/lib/search/pinduoduo-live-offer";
 import { searchCatalog } from "@/lib/search/products";
 import { SearchFilters } from "./search-filters";
+
+function liveOffer(overrides: Partial<LivePinduoduoOffer> = {}): LivePinduoduoOffer {
+  return {
+    productId: phones[0].id,
+    variantId: phones[0].variants[0].id,
+    goodsId: "live-1",
+    title: "Apple iPhone 16 实时商品标题",
+    image: "https://example.com/live-phone.jpg",
+    merchant: "品牌好店",
+    merchantType: 1,
+    hasCoupon: true,
+    couponAmount: 200,
+    couponMinOrderAmount: 1_000,
+    extraCouponAmount: 50,
+    salesTip: "已拼1.2万+",
+    realtimeSalesTip: "近2小时已拼100+件",
+    sales: 12_000,
+    price: 6_999,
+    source: "live",
+    fetchedAt: "2026-09-05T00:00:00.000Z",
+    relevance: 500,
+    ...overrides,
+  };
+}
 
 describe("search filter navigation", () => {
   it("prefills the top search and preserves comparison on a new search", async () => {
@@ -28,6 +54,94 @@ describe("search filter navigation", () => {
 });
 
 describe("product card presentation", () => {
+  it("shows restrained live Pinduoduo facts and the lower comparable display price", async () => {
+    const { SearchProductCard } = await import("./search-product-card");
+    const offer = liveOffer();
+    const row = searchCatalog([phones[0]], { sort: "relevance" }, new Map([[phones[0].id, [offer]]] ))[0];
+    const html = renderToStaticMarkup(<SearchProductCard row={row} />);
+
+    expect(html).toContain("实时拼多多报价");
+    expect(html).toContain("实时拼多多报价暂未计入 PriceAI 评分");
+    expect(html).toContain("Apple iPhone 16 实时商品标题");
+    expect(html).toContain("品牌好店");
+    expect(html).toContain("¥6,999");
+    expect(html).toContain("近2小时已拼100+件");
+    expect(html).toContain("券额 ¥200");
+    expect(html).toContain("使用门槛 ¥1,000");
+    expect(html).toContain("额外优惠 ¥50");
+    expect(html).toContain("https://example.com/live-phone.jpg");
+    expect(html).not.toMatch(/评分：4\.\d|评论|评价|去购买|立即购买/);
+  });
+
+  it("visibly scopes the persisted purchase reference when a lower live price leads", async () => {
+    const { SearchProductCard } = await import("./search-product-card");
+    const offer = liveOffer({ price: 6_999 });
+    const row = searchCatalog([phones[0]], { sort: "relevance" }, new Map([[phones[0].id, [offer]]]))[0];
+    const html = renderToStaticMarkup(<SearchProductCard row={row} />);
+
+    expect(html).toContain("当前可比最低价");
+    expect(html).toContain("¥6,999");
+    expect(html).toContain("已收录平台报价中，同规格最低报价比第二低报价低 ¥200");
+    expect(html).not.toContain("参与评分的平台报价");
+    expect(html).toContain("此参考不含实时拼多多报价");
+  });
+
+  it("omits absent live facts and the entire section when no live data exists", async () => {
+    const { SearchProductCard } = await import("./search-product-card");
+    const absentFacts = liveOffer({
+      image: "javascript:alert(1)",
+      merchant: "",
+      hasCoupon: false,
+      couponAmount: undefined,
+      couponMinOrderAmount: undefined,
+      extraCouponAmount: undefined,
+      salesTip: null,
+      realtimeSalesTip: null,
+      sales: null,
+    });
+    const withLive = renderToStaticMarkup(<SearchProductCard row={searchCatalog(
+      [phones[0]],
+      { sort: "relevance" },
+      new Map([[phones[0].id, [absentFacts]]]),
+    )[0]} />);
+    const withoutLive = renderToStaticMarkup(<SearchProductCard row={searchCatalog([phones[0]], { sort: "relevance" })[0]} />);
+
+    expect(withLive).not.toContain("javascript:alert(1)");
+    expect(withLive).not.toMatch(/优惠信息|销量|品牌好店/);
+    expect(withoutLive).not.toContain("实时拼多多报价");
+    expect(withoutLive).toContain("当前已收录最低价");
+  });
+
+  it("keeps an unknown live SKU separate from the persisted headline price", async () => {
+    const { SearchProductCard } = await import("./search-product-card");
+    const offer = liveOffer({ variantId: null, price: 9.9 });
+    const html = renderToStaticMarkup(<SearchProductCard row={searchCatalog(
+      [phones[0]],
+      { sort: "relevance" },
+      new Map([[phones[0].id, [offer]]]),
+    )[0]} />);
+
+    expect(html).toContain("¥7,599");
+    expect(html).toContain("当前已收录最低价");
+    expect(html).toContain("¥9.9");
+    expect(html).not.toContain("当前可比最低价");
+  });
+
+  it("keeps live section identifiers unique when multiple cards render", async () => {
+    const { SearchProductCard } = await import("./search-product-card");
+    const first = structuredClone(phones[0]);
+    const second = structuredClone(phones[1]);
+    const offers = new Map([
+      [first.id, [liveOffer({ productId: first.id, goodsId: "first" })]],
+      [second.id, [liveOffer({ productId: second.id, goodsId: "second" })]],
+    ]);
+    const html = renderToStaticMarkup(<Fragment>{searchCatalog([first, second], { sort: "relevance" }, offers)
+      .map((row) => <SearchProductCard key={row.product.id} row={row} />)}</Fragment>);
+    const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
+
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("identifies the detail-page default variant when the quoted variant differs", async () => {
     const { SearchProductCard } = await import("./search-product-card");
     const product = structuredClone(phones[0]);

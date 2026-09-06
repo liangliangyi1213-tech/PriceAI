@@ -1,9 +1,55 @@
 import { describe, expect, it } from "vitest";
 import { phones } from "@/data/phones";
+import type { LivePinduoduoOffer } from "@/lib/search/pinduoduo-live-offer";
 import { searchCatalog } from "@/lib/search/products";
 import * as presentation from "./presentation";
 
+function liveOffer(overrides: Partial<LivePinduoduoOffer> = {}): LivePinduoduoOffer {
+  return {
+    productId: phones[0].id,
+    variantId: null,
+    goodsId: "live-1",
+    title: "Apple iPhone 16 256GB",
+    image: "https://example.com/live-phone.jpg",
+    merchant: "品牌好店",
+    merchantType: 1,
+    hasCoupon: true,
+    couponAmount: 200,
+    couponMinOrderAmount: 1_000,
+    extraCouponAmount: 50,
+    salesTip: "已拼1.2万+",
+    realtimeSalesTip: "近2小时已拼100+件",
+    sales: 12_000,
+    price: 6_999,
+    source: "live",
+    fetchedAt: "2026-09-05T00:00:00.000Z",
+    relevance: 500,
+    ...overrides,
+  };
+}
+
 describe("search presentation", () => {
+  it("presents only validated live image, sales, and coupon facts", () => {
+    expect(presentation.livePinduoduoOfferFacts(liveOffer())).toEqual({
+      image: "https://example.com/live-phone.jpg",
+      salesLabel: "近2小时已拼100+件",
+      couponLabels: ["有券", "券额 ¥200", "使用门槛 ¥1,000", "额外优惠 ¥50"],
+    });
+  });
+
+  it("omits absent live facts and rejects non-HTTPS images", () => {
+    expect(presentation.livePinduoduoOfferFacts(liveOffer({
+      image: "http://example.com/unsafe.jpg",
+      hasCoupon: false,
+      couponAmount: undefined,
+      couponMinOrderAmount: undefined,
+      extraCouponAmount: undefined,
+      salesTip: null,
+      realtimeSalesTip: null,
+      sales: null,
+    }))).toEqual({ image: null, salesLabel: null, couponLabels: [] });
+  });
+
   it("bases the opinion on the next-lowest same-variant platform, not the highest", () => {
     const row = searchCatalog([phones[0]], { sort: "relevance" })[0];
     expect(presentation.purchaseOpinion(row)).toBe("同规格最低价比第二低价低 ¥200，可以优先比较。");

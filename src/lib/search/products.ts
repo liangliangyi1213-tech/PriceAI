@@ -3,6 +3,7 @@ import { scoreVariant } from "@/lib/scoring/value-score";
 import type { Offer, Product, ProductVariant } from "@/types/catalog";
 
 import type { ProductSearchQuery, ProductSearchSort } from "./query";
+import type { LivePinduoduoOffer } from "./pinduoduo-live-offer";
 
 export type ProductSearchRow = {
   product: Product;
@@ -11,6 +12,8 @@ export type ProductSearchRow = {
   rating: number | null;
   sales: number | null;
   platformCount: number;
+  livePinduoduoOffers: readonly LivePinduoduoOffer[];
+  displayLowestPrice: number | null;
   relevance: number;
   catalogIndex: number;
 };
@@ -46,7 +49,12 @@ function getRelevance(product: Product, query: string | undefined): number {
   return -1;
 }
 
-function getProductMetrics(product: Product, catalogIndex: number, relevance: number): ProductSearchRow {
+function getProductMetrics(
+  product: Product,
+  catalogIndex: number,
+  relevance: number,
+  livePinduoduoOffers: readonly LivePinduoduoOffer[],
+): ProductSearchRow {
   const variantOffers = product.variants
     .map((variant) => ({ variant, offer: getLowestOffer(variant.offers) }))
     .filter((entry): entry is { variant: ProductVariant; offer: Offer } => entry.offer !== undefined);
@@ -59,8 +67,30 @@ function getProductMetrics(product: Product, catalogIndex: number, relevance: nu
   const rating = lowestOffer && Number.isFinite(lowestOffer.rating) ? lowestOffer.rating : null;
   const sales = lowestOffer && Number.isFinite(lowestOffer.sales) ? lowestOffer.sales : null;
   const platformCount = new Set(variantOffers.map((entry) => entry.offer.platform)).size;
+  const comparableLiveOffers = lowestEntry
+    ? livePinduoduoOffers.filter((offer) => offer.variantId === lowestEntry.variant.id)
+    : [];
+  const liveLowestPrice = comparableLiveOffers.reduce<number | null>((lowest, offer) => {
+    if (!Number.isFinite(offer.price) || offer.price <= 0) return lowest;
+    return lowest === null || offer.price < lowest ? offer.price : lowest;
+  }, null);
+  const persistedLowestPrice = lowestOffer?.price ?? null;
+  const displayLowestPrice = liveLowestPrice === null
+    ? persistedLowestPrice
+    : persistedLowestPrice === null ? liveLowestPrice : Math.min(persistedLowestPrice, liveLowestPrice);
 
-  return { product, lowestOffer, valueScore, rating, sales, platformCount, relevance, catalogIndex };
+  return {
+    product,
+    lowestOffer,
+    valueScore,
+    rating,
+    sales,
+    platformCount,
+    livePinduoduoOffers,
+    displayLowestPrice,
+    relevance,
+    catalogIndex,
+  };
 }
 
 function matchesBrands(product: Product, brands: string[] | undefined): boolean {
@@ -91,9 +121,9 @@ function compareMetricAscending(left: number | null, right: number | null): numb
 
 function compareBySort(left: ProductSearchRow, right: ProductSearchRow, sort: ProductSearchSort): number {
   if (sort === "price_asc") {
-    return compareMetricAscending(left.lowestOffer?.price ?? null, right.lowestOffer?.price ?? null);
+    return compareMetricAscending(left.displayLowestPrice, right.displayLowestPrice);
   }
-  if (sort === "price_desc") return compareMetricDescending(left.lowestOffer?.price ?? null, right.lowestOffer?.price ?? null);
+  if (sort === "price_desc") return compareMetricDescending(left.displayLowestPrice, right.displayLowestPrice);
   if (sort === "score_desc") return compareMetricDescending(left.valueScore, right.valueScore);
   if (sort === "rating_desc") return compareMetricDescending(left.rating, right.rating);
   if (sort === "sales_desc") return compareMetricDescending(left.sales, right.sales);
@@ -101,13 +131,17 @@ function compareBySort(left: ProductSearchRow, right: ProductSearchRow, sort: Pr
 }
 
 /** Applies PriceAI product-domain search, filtering and stable ordering in memory. */
-export function searchCatalog(products: Product[], searchQuery: ProductSearchQuery): ProductSearchRow[] {
+export function searchCatalog(
+  products: Product[],
+  searchQuery: ProductSearchQuery,
+  liveOffersByProduct?: ReadonlyMap<string, readonly LivePinduoduoOffer[]>,
+): ProductSearchRow[] {
   return products
     .map((product, catalogIndex) => ({ product, catalogIndex, relevance: getRelevance(product, searchQuery.query) }))
     .filter(({ relevance }) => !searchQuery.query || relevance >= 0)
     .filter(({ product }) => matchesBrands(product, searchQuery.brands))
-    .map(({ product, catalogIndex, relevance }) => getProductMetrics(product, catalogIndex, relevance))
-    .filter((row) => hasMetricInRange(row.lowestOffer?.price, searchQuery.minPrice, searchQuery.maxPrice))
+    .map(({ product, catalogIndex, relevance }) => getProductMetrics(product, catalogIndex, relevance, liveOffersByProduct?.get(product.id) ?? []))
+    .filter((row) => hasMetricInRange(row.displayLowestPrice, searchQuery.minPrice, searchQuery.maxPrice))
     .filter((row) => searchQuery.minScore === undefined || (row.valueScore !== null && row.valueScore >= searchQuery.minScore))
     .sort((left, right) => compareBySort(left, right, searchQuery.sort) || left.catalogIndex - right.catalogIndex);
 }

@@ -6,11 +6,13 @@ import { PlatformAuthError, PlatformRequestError, toSafePlatformError } from "./
 
 const PINDUODUO_API_ROUTER = "https://gw-api.pinduoduo.com/api/router";
 const RECOMMEND_METHOD = "pdd.ddk.goods.recommend.get";
+const SEARCH_METHOD = "pdd.ddk.goods.search";
 
 type RequestValue = string | number | boolean;
 type RequestParameters = Record<string, RequestValue>;
+type PinduoduoRequestOptions = { signal?: AbortSignal };
 
-export type PinduoduoRecommendedGoods = {
+export type PinduoduoGoods = {
   goodsId: string;
   goodsSign: string | null;
   goodsName: string;
@@ -26,12 +28,24 @@ export type PinduoduoRecommendedGoods = {
   couponMinOrderAmount: number | null;
   minNormalPrice: number;
   promotionRate: number | null;
+  minGroupPrice?: number;
+  extraCouponAmount?: number;
+  optName?: string;
+  catIds?: number[];
+  goodsDescription?: string;
+  fetchedAt: Date;
 };
 
-export type PinduoduoRecommendResponse = {
+/** @deprecated Use PinduoduoGoods. Keeps the legacy shape compatible with existing consumers. */
+export type PinduoduoRecommendedGoods = Omit<PinduoduoGoods, "fetchedAt"> & { fetchedAt?: Date };
+
+export type PinduoduoGoodsResponse = {
   total: number;
-  goods: PinduoduoRecommendedGoods[];
+  goods: PinduoduoGoods[];
 };
+
+/** @deprecated Use PinduoduoGoodsResponse. Kept for existing client consumers. */
+export type PinduoduoRecommendResponse = PinduoduoGoodsResponse;
 
 type PinduoduoClientOptions = {
   clientId: string;
@@ -44,6 +58,16 @@ type PinduoduoClientOptions = {
 function finiteNumber(value: unknown): number | null {
   const number = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
   return Number.isFinite(number) ? number : null;
+}
+
+function boundedInteger(value: number, fallback: number, minimum: number, maximum: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(maximum, Math.max(minimum, Math.floor(value)));
+}
+
+function nonNegativeInteger(value: number, fallback = 0): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(0, Math.floor(value));
 }
 
 function optionalString(value: unknown): string | null {
@@ -76,7 +100,13 @@ export function signPinduoduoRequest(parameters: RequestParameters, clientSecret
   return createHash("md5").update(`${clientSecret}${serialized}${clientSecret}`, "utf8").digest("hex").toUpperCase();
 }
 
-function parseGoods(value: unknown): PinduoduoRecommendedGoods | null {
+function parsedCatIds(value: unknown): number[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const catIds = value.map(finiteNumber).filter((item): item is number => item !== null);
+  return catIds.length > 0 ? catIds : undefined;
+}
+
+function parseGoods(value: unknown, fetchedAt: Date): PinduoduoGoods | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const item = value as Record<string, unknown>;
   const goodsId = finiteNumber(item.goods_id) ?? optionalString(item.goods_id);
@@ -84,6 +114,12 @@ function parseGoods(value: unknown): PinduoduoRecommendedGoods | null {
   const mallName = optionalString(item.mall_name);
   const minNormalPrice = fenToYuan(item.min_normal_price);
   if (goodsId === null || !goodsName || !mallName || minNormalPrice === null || minNormalPrice <= 0) return null;
+
+  const minGroupPrice = fenToYuan(item.min_group_price);
+  const extraCouponAmount = fenToYuan(item.extra_coupon_amount);
+  const optName = optionalString(item.opt_name);
+  const catIds = parsedCatIds(item.cat_ids);
+  const goodsDescription = optionalString(item.goods_desc);
 
   return {
     goodsId: String(goodsId),
@@ -101,21 +137,41 @@ function parseGoods(value: unknown): PinduoduoRecommendedGoods | null {
     couponMinOrderAmount: fenToYuan(item.coupon_min_order_amount),
     minNormalPrice,
     promotionRate: finiteNumber(item.promotion_rate),
+    ...(minGroupPrice !== null ? { minGroupPrice } : {}),
+    ...(extraCouponAmount !== null ? { extraCouponAmount } : {}),
+    ...(optName ? { optName } : {}),
+    ...(catIds ? { catIds } : {}),
+    ...(goodsDescription ? { goodsDescription } : {}),
+    fetchedAt: new Date(fetchedAt.getTime()),
   };
 }
 
-export function parsePinduoduoRecommendResponse(value: unknown): PinduoduoRecommendResponse {
+function parsePinduoduoGoodsResponse(
+  value: unknown,
+  responseKey: string,
+  listKey: string,
+  totalKey: string,
+  fetchedAt: Date,
+): PinduoduoGoodsResponse {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new PlatformRequestError("pdd");
   const root = value as Record<string, unknown>;
   if (root.error_response) throw new PlatformRequestError("pdd");
-  const response = root.goods_basic_detail_response;
+  const response = root[responseKey];
   if (!response || typeof response !== "object" || Array.isArray(response)) throw new PlatformRequestError("pdd");
   const payload = response as Record<string, unknown>;
-  const list = Array.isArray(payload.list) ? payload.list : [];
+  const list = Array.isArray(payload[listKey]) ? payload[listKey] : [];
   return {
-    total: Math.max(0, Math.floor(finiteNumber(payload.total) ?? list.length)),
-    goods: list.map(parseGoods).filter((item): item is PinduoduoRecommendedGoods => item !== null),
+    total: Math.max(0, Math.floor(finiteNumber(payload[totalKey]) ?? list.length)),
+    goods: list.map((item) => parseGoods(item, fetchedAt)).filter((item): item is PinduoduoGoods => item !== null),
   };
+}
+
+export function parsePinduoduoRecommendResponse(value: unknown, fetchedAt = new Date()): PinduoduoRecommendResponse {
+  return parsePinduoduoGoodsResponse(value, "goods_basic_detail_response", "list", "total", fetchedAt);
+}
+
+export function parsePinduoduoSearchResponse(value: unknown, fetchedAt = new Date()): PinduoduoGoodsResponse {
+  return parsePinduoduoGoodsResponse(value, "goods_search_response", "goods_list", "total_count", fetchedAt);
 }
 
 export class PinduoduoClient {
@@ -127,17 +183,7 @@ export class PinduoduoClient {
     this.now = options.now ?? (() => new Date());
   }
 
-  async getRecommendedGoods({ limit = 20, offset = 0 }: { limit?: number; offset?: number } = {}): Promise<PinduoduoRecommendResponse> {
-    const parameters: RequestParameters = {
-      type: RECOMMEND_METHOD,
-      client_id: this.options.clientId,
-      timestamp: Math.floor(this.now().getTime() / 1000),
-      data_type: "JSON",
-      version: "V1",
-      pid: this.options.pid,
-      limit: Math.min(400, Math.max(1, Math.floor(limit))),
-      offset: Math.max(0, Math.floor(offset)),
-    };
+  private async request(parameters: RequestParameters, requestOptions: PinduoduoRequestOptions = {}): Promise<unknown> {
     const body = new URLSearchParams();
     for (const [key, value] of Object.entries({ ...parameters, sign: signPinduoduoRequest(parameters, this.options.clientSecret) })) {
       body.set(key, String(value));
@@ -149,12 +195,51 @@ export class PinduoduoClient {
         headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
         body: body.toString(),
         cache: "no-store",
+        signal: requestOptions.signal,
       });
       if (!response.ok) throw Object.assign(new Error("Pinduoduo request failed"), { status: response.status });
-      return parsePinduoduoRecommendResponse(await response.json());
+      return await response.json();
     } catch (error) {
       throw toSafePlatformError("pdd", error);
     }
+  }
+
+  async getRecommendedGoods(
+    { limit = 20, offset = 0 }: { limit?: number; offset?: number } = {},
+    requestOptions: PinduoduoRequestOptions = {},
+  ): Promise<PinduoduoRecommendResponse> {
+    const fetchedAt = this.now();
+    const parameters: RequestParameters = {
+      type: RECOMMEND_METHOD,
+      client_id: this.options.clientId,
+      timestamp: Math.floor(fetchedAt.getTime() / 1000),
+      data_type: "JSON",
+      version: "V1",
+      pid: this.options.pid,
+      limit: boundedInteger(limit, 20, 1, 400),
+      offset: nonNegativeInteger(offset),
+    };
+    return parsePinduoduoRecommendResponse(await this.request(parameters, requestOptions), fetchedAt);
+  }
+
+  async searchGoods(
+    query: string,
+    { limit = 20, page = 1 }: { limit?: number; page?: number } = {},
+    requestOptions: PinduoduoRequestOptions = {},
+  ): Promise<PinduoduoGoodsResponse> {
+    const fetchedAt = this.now();
+    const parameters: RequestParameters = {
+      type: SEARCH_METHOD,
+      client_id: this.options.clientId,
+      timestamp: Math.floor(fetchedAt.getTime() / 1000),
+      data_type: "JSON",
+      version: "V1",
+      pid: this.options.pid,
+      keyword: query,
+      page: boundedInteger(page, 1, 1, Number.MAX_SAFE_INTEGER),
+      page_size: boundedInteger(limit, 20, 1, 100),
+    };
+    return parsePinduoduoSearchResponse(await this.request(parameters, requestOptions), fetchedAt);
   }
 }
 

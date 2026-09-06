@@ -46,7 +46,7 @@ export class PinduoduoAdapter implements PlatformAdapter {
   readonly id = "pdd" as const;
 
   constructor(private readonly options: {
-    client: Pick<PinduoduoClient, "getRecommendedGoods"> | null;
+    client: (Pick<PinduoduoClient, "getRecommendedGoods"> & Partial<Pick<PinduoduoClient, "searchGoods">>) | null;
     fallback?: RecommendationSource;
     isDevelopment?: boolean;
   }) {}
@@ -54,6 +54,21 @@ export class PinduoduoAdapter implements PlatformAdapter {
   async searchProducts(query: string): Promise<PlatformSearchResult[]> {
     void query;
     throw new PlatformUnavailableError("pdd");
+  }
+
+  /** Keyword search is distinct from the catalog-sync recommendation pool. */
+  async searchGoods(query: string, options: PlatformSearchOptions = {}): Promise<PlatformSearchResult[]> {
+    if (!query.trim()) return [];
+    if (!this.options.client) throw new PlatformAuthError("pdd");
+    if (!this.options.client.searchGoods) throw new PlatformUnavailableError("pdd");
+    const limit = typeof options.limit === "number" && Number.isFinite(options.limit) ? Math.max(1, Math.floor(options.limit)) : 20;
+    const page = typeof options.page === "number" && Number.isFinite(options.page) ? Math.max(1, Math.floor(options.page)) : 1;
+    try {
+      const response = await this.options.client.searchGoods(query, { limit, page });
+      return response.goods.map(mapPinduoduoGoods);
+    } catch (error) {
+      throw toSafePlatformError("pdd", error);
+    }
   }
 
   async getRecommendedProducts(options: PlatformSearchOptions = {}): Promise<PlatformSearchResult[]> {
