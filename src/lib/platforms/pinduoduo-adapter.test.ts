@@ -24,6 +24,9 @@ const goods = {
 };
 
 describe("PinduoduoAdapter", () => {
+  it("does not invent a shop name when Pinduoduo omits mall_name", () => {
+    expect(mapPinduoduoGoods({ ...goods, mallName: null }).shopName).toBe("");
+  });
   it("maps keyword search independently from the recommendation pool", async () => {
     const client = {
       searchGoods: vi.fn().mockResolvedValue({ total: 1, goods: [goods] }),

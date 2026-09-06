@@ -146,6 +146,18 @@ describe("Pinduoduo response parsing", () => {
       missingNormalPriceCount: 1, missingGroupPriceCount: 0, noComparablePriceCount: 0,
     });
   });
+
+  it("keeps a priced product when the search response omits mall_name", () => {
+    const result = parsePinduoduoSearchResponse({
+      goods_search_response: {
+        total_count: 1,
+        goods_list: [{ ...rawSearchGoods, mall_name: undefined }],
+      },
+    });
+    expect(result.goods).toHaveLength(1);
+    expect(result.goods[0].mallName).toBeNull();
+    expect(result.parseDiagnostics.missingMallNameCount).toBe(1);
+  });
 });
 
 describe("Pinduoduo search response parsing", () => {

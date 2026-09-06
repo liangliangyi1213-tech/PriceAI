@@ -127,7 +127,7 @@ export function selectLivePinduoduoOffersWithDiagnostics(products: readonly Prod
       offers.push({
         productId: product.id, variantId,
         goodsId: item.goodsId, title: item.goodsName,
-        image: item.goodsImageUrl ?? item.goodsThumbnailUrl, merchant: item.mallName,
+        image: item.goodsImageUrl ?? item.goodsThumbnailUrl, merchant: item.mallName ?? "",
         merchantType: item.merchantType, ...prices, hasCoupon: item.hasCoupon,
         ...(nonNegative(item.couponPrice) ? { couponAmount: item.couponPrice } : {}),
         ...(nonNegative(item.couponMinOrderAmount) ? { couponMinOrderAmount: item.couponMinOrderAmount } : {}),

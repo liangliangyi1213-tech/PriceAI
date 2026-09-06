@@ -19,7 +19,7 @@ export type PinduoduoGoods = {
   goodsThumbnailUrl: string | null;
   goodsImageUrl: string | null;
   categoryName: string | null;
-  mallName: string;
+  mallName: string | null;
   merchantType: number | null;
   salesTip: string | null;
   realtimeSalesTip: string | null;
@@ -125,7 +125,7 @@ function parseGoods(value: unknown, fetchedAt: Date): PinduoduoGoods | null {
   const goodsName = optionalString(item.goods_name);
   const mallName = optionalString(item.mall_name);
   const minNormalPrice = fenToYuan(item.min_normal_price);
-  if (goodsId === null || !goodsName || !mallName || minNormalPrice === null || minNormalPrice <= 0) return null;
+  if (goodsId === null || !goodsName || minNormalPrice === null || minNormalPrice <= 0) return null;
 
   const minGroupPrice = fenToYuan(item.min_group_price);
   const extraCouponAmount = fenToYuan(item.extra_coupon_amount);

@@ -86,6 +86,10 @@ describe("live Pinduoduo offers", () => {
     expect(offer).not.toHaveProperty("couponPrice");
     expect(product).toEqual(before);
   });
+  it("keeps a valid live offer without inventing a missing merchant name", () => {
+    const [offer] = selectLivePinduoduoOffers([product], "iphone16", [goods({ mallName: null })]).get(product.id)!;
+    expect(offer.merchant).toBe("");
+  });
   it("keeps the variant unknown when no supplied storage/color establishes a match", () => {
     const [offer] = selectLivePinduoduoOffers([product], "iphone16", [goods({ goodsName: "Apple iPhone16 手机" })]).get(product.id)!;
     expect(offer.variantId).toBeNull();

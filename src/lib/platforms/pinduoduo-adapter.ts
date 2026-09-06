@@ -24,7 +24,7 @@ export function mapPinduoduoGoods(goods: PinduoduoRecommendedGoods): PlatformSea
     title: goods.goodsName,
     price: goods.minNormalPrice,
     imageUrl: goods.goodsImageUrl ?? goods.goodsThumbnailUrl ?? undefined,
-    shopName: goods.mallName,
+    shopName: goods.mallName ?? "",
     sales: parseSalesTip(goods.realtimeSalesTip ?? goods.salesTip),
     productUrl: "",
     sourceMetadata: {
