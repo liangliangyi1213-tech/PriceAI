@@ -118,6 +118,24 @@ describe("Pinduoduo response parsing", () => {
     }));
   });
 
+  it("retains only sanitized Pinduoduo sub-error diagnostics", () => {
+    expect(() => parsePinduoduoSearchResponse({
+      error_response: {
+        error_code: 50001,
+        error_msg: "private provider envelope",
+        sub_code: "60001",
+        sub_msg: "未传入备案参数 pid=12345678901234567890，详情 https://private.example/token",
+        request_id: "request-123",
+      },
+    })).toThrowError(expect.objectContaining({
+      providerCode: 50001,
+      providerSubCode: 60001,
+      providerSubMessage: "未传入备案参数 pid=[REDACTED]，详情 [URL]",
+      providerRequestId: "request-123",
+      message: "拼多多平台请求失败，请稍后重试。",
+    }));
+  });
+
   it("reports raw result count separately from valid parsed goods", () => {
     const result = parsePinduoduoRecommendResponse({
       goods_basic_detail_response: {
@@ -254,6 +272,51 @@ describe("PinduoduoClient", () => {
       page_size: "30",
       sign: expect.stringMatching(/^[A-F0-9]{32}$/),
     });
+  });
+
+  it("sends optional official recall parameters without inventing category ids", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({ goods_search_response: { goods_list: [] } }));
+    const client = new PinduoduoClient({ clientId: "test_client", clientSecret: "test_secret", pid: "test_pid", fetcher });
+
+    await client.searchGoods("测试手机", {
+      limit: 100,
+      page: 2,
+      optId: 321,
+      catId: 654,
+      useCustomized: false,
+      listId: "official-list-id",
+    });
+
+    const body = new URLSearchParams(String(fetcher.mock.calls[0][1]?.body));
+    expect(Object.fromEntries(body)).toMatchObject({
+      keyword: "测试手机",
+      page: "2",
+      page_size: "100",
+      opt_id: "321",
+      cat_id: "654",
+      use_customized: "false",
+      list_id: "official-list-id",
+    });
+  });
+
+  it("gets official opt and standard category children by parent id", async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ goods_opt_get_response: { goods_opt_list: [
+        { opt_id: 10, opt_name: "手机", parent_opt_id: 0, level: 1 },
+      ] } }))
+      .mockResolvedValueOnce(Response.json({ goods_cats_get_response: { goods_cats_list: [
+        { cat_id: 20, cat_name: "手机", parent_cat_id: 0, level: 1 },
+      ] } }));
+    const client = new PinduoduoClient({ clientId: "test_client", clientSecret: "test_secret", pid: "test_pid", fetcher });
+
+    await expect(client.getGoodsOptChildren(0)).resolves.toEqual([
+      { id: 10, name: "手机", parentId: 0, level: 1 },
+    ]);
+    await expect(client.getGoodsCategoryChildren(0)).resolves.toEqual([
+      { id: 20, name: "手机", parentId: 0, level: 1 },
+    ]);
+    expect(new URLSearchParams(String(fetcher.mock.calls[0][1]?.body)).get("parent_opt_id")).toBe("0");
+    expect(new URLSearchParams(String(fetcher.mock.calls[1][1]?.body)).get("parent_cat_id")).toBe("0");
   });
 
   it("passes the caller abort signal to the upstream fetch", async () => {

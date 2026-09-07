@@ -39,10 +39,23 @@ export class PlatformRateLimitError extends PlatformAdapterError {
 
 export class PlatformRequestError extends PlatformAdapterError {
   readonly providerCode: string | number | null;
+  readonly providerSubCode: string | number | null;
+  readonly providerSubMessage: string | null;
+  readonly providerRequestId: string | null;
 
-  constructor(platform: PlatformAdapterId, status: number | null = null, providerCode: string | number | null = null) {
+  constructor(
+    platform: PlatformAdapterId,
+    status: number | null = null,
+    providerCode: string | number | null = null,
+    providerSubCode: string | number | null = null,
+    providerSubMessage: string | null = null,
+    providerRequestId: string | null = null,
+  ) {
     super("PlatformRequestError", platform, `${platformLabels[platform]}平台请求失败，请稍后重试。`, status);
     this.providerCode = providerCode;
+    this.providerSubCode = providerSubCode;
+    this.providerSubMessage = providerSubMessage;
+    this.providerRequestId = providerRequestId;
   }
 }
 

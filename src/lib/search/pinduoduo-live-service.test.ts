@@ -38,6 +38,29 @@ describe("live Pinduoduo service", () => {
     expect(product).toEqual(before);
   });
 
+  it("runs aggregate A/B/C/D diagnostics behind a server-only experiment flag", async () => {
+    vi.stubEnv("PDD_RECALL_EXPERIMENT", "1");
+    const client = {
+      ...clientFixture(),
+      getGoodsOptChildren: vi.fn().mockResolvedValue([{ id: 321, name: "手机", parentId: 0, level: 1 }]),
+      getGoodsCategoryChildren: vi.fn().mockResolvedValue([{ id: 654, name: "手机", parentId: 0, level: 1 }]),
+    };
+    const events: unknown[] = [];
+    await createLivePinduoduoService({ client, diagnostic: (event) => events.push(event), timeoutMs: 1000 })([product], "iphone16");
+    expect(events).toContainEqual(expect.objectContaining({
+      event: "recall_experiment",
+      categories: { opt: { id: 321, name: "手机", level: 1 }, category: { id: 654, name: "手机", level: 1 } },
+      variants: expect.objectContaining({
+        A: expect.objectContaining({ success: true, strictMatchCount: 1 }),
+        B: expect.objectContaining({ success: true, strictMatchCount: 1 }),
+        C: expect.objectContaining({ success: true, strictMatchCount: 1 }),
+        D: expect.objectContaining({ success: true, strictMatchCount: 1 }),
+      }),
+    }));
+    expect(client.searchGoods).toHaveBeenCalledTimes(5);
+    expect(JSON.stringify(events)).not.toMatch(/iphone16|Apple|品牌商城|private-product-sign/i);
+  });
+
   it("uses the recommendation pool only after an empty search", async () => {
     const client = clientFixture();
     client.searchGoods.mockResolvedValue(response([]));
@@ -60,12 +83,25 @@ describe("live Pinduoduo service", () => {
     expect(JSON.stringify(events)).not.toMatch(/iphone|123|品牌商城|private/i);
   });
 
-  it("emits only a safe provider error code on failure", async () => {
+  it("emits only safe provider error diagnostics on failure", async () => {
     const client = clientFixture();
-    client.searchGoods.mockRejectedValue(Object.assign(new Error("private request"), { providerCode: 10019 }));
+    client.searchGoods.mockRejectedValue(Object.assign(new Error("private request"), {
+      providerCode: 50001,
+      providerSubCode: 60001,
+      providerSubMessage: "缺少备案参数 pid=[REDACTED]",
+      providerRequestId: "request-123",
+    }));
     const events: unknown[] = [];
     await createLivePinduoduoService({ client, diagnostic: (event) => events.push(event) })([product], "iphone16");
-    expect(events).toEqual([{ event: "api_response", method: "pdd.ddk.goods.search", success: false, errorCode: 10019 }]);
+    expect(events).toEqual([{
+      event: "api_response",
+      method: "pdd.ddk.goods.search",
+      success: false,
+      errorCode: 50001,
+      subCode: 60001,
+      subMessage: "缺少备案参数 pid=[REDACTED]",
+      requestId: "request-123",
+    }]);
     expect(JSON.stringify(events)).not.toContain("private request");
   });
 

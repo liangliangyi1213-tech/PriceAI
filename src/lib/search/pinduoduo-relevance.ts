@@ -59,6 +59,13 @@ export type PinduoduoClassificationReason =
   | "empty_query" | "model_mismatch" | "suffix_mismatch"
   | "query_mismatch" | "missing_phone_evidence" | "subject";
 
+/** Category-level classification used only for aggregate recall diagnostics. */
+export function classifyPinduoduoMerchandiseType(goods: PinduoduoGoods): "accessory" | "subject" | "unrelated" {
+  const itemEvidence = [goods.goodsName, goods.categoryName, goods.optName].join(" ");
+  if (ACCESSORIES.test(itemEvidence) || NON_RETAIL_MODELS.test(itemEvidence) || isReplacementPart(goods)) return "accessory";
+  return hasPhoneEvidence(goods) ? "subject" : "unrelated";
+}
+
 export function classifyPinduoduoGoodsWithReason(query: string, product: Product, goods: PinduoduoGoods): {
   classification: "subject" | "accessory" | "unrelated";
   reason: PinduoduoClassificationReason;

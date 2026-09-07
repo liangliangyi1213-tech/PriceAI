@@ -3,15 +3,18 @@ import "server-only";
 import { createPinduoduoClientFromEnv, type PinduoduoClient, type PinduoduoGoods } from "@/lib/platforms/pinduoduo-client";
 import type { Product } from "@/types/catalog";
 import { selectLivePinduoduoOffersWithDiagnostics, type LivePinduoduoOffer } from "./pinduoduo-live-offer";
+import { runPinduoduoRecallExperiment, type RecallExperimentResult } from "./pinduoduo-recall-experiment";
 
 const CACHE_TTL_MS = 600_000;
 const MAX_GOODS_PER_QUERY = 400;
 const MAX_SEARCH_PAGES = 5;
 const DEFAULT_REQUEST_DEADLINE_MS = 8_000;
+const RECALL_EXPERIMENT_DEADLINE_MS = 20_000;
+const PRODUCTION_RECALL_EXPERIMENT_QUERIES = new Set(["iphone 16 pro"]);
 
 export type PinduoduoGoodsCache = Map<string, { expiresAt: number; goods: PinduoduoGoods[] }>;
 type ServiceOptions = {
-  client?: Pick<PinduoduoClient, "searchGoods" | "getRecommendedGoods"> | null;
+  client?: (Pick<PinduoduoClient, "searchGoods" | "getRecommendedGoods"> & Partial<Pick<PinduoduoClient, "getGoodsOptChildren" | "getGoodsCategoryChildren">>) | null;
   cache?: PinduoduoGoodsCache;
   now?: () => number;
   maxCacheEntries?: number;
@@ -22,17 +25,25 @@ type ServiceOptions = {
 type ApiMethod = "pdd.ddk.goods.search" | "pdd.ddk.goods.recommend.get";
 export type PinduoduoDiagnosticEvent =
   | ({ event: "api_response"; method: ApiMethod; success: true; providerTotal: number; rawCount: number; parsedCount: number } & import("@/lib/platforms/pinduoduo-client").PinduoduoParseDiagnostics)
-  | { event: "api_response"; method: ApiMethod; success: false; errorCode: string | number | null }
-  | ({ event: "selection"; source: "search" | "recommend" } & import("./pinduoduo-live-offer").PinduoduoSelectionDiagnostics);
+  | { event: "api_response"; method: ApiMethod; success: false; errorCode: string | number | null; subCode: string | number | null; subMessage: string | null; requestId: string | null }
+  | ({ event: "selection"; source: "search" | "recommend" } & import("./pinduoduo-live-offer").PinduoduoSelectionDiagnostics)
+  | ({ event: "recall_experiment" } & RecallExperimentResult);
 
 function defaultDiagnostic(event: PinduoduoDiagnosticEvent): void {
   console.info("[pdd-live]", JSON.stringify(event));
 }
 
-function safeProviderCode(error: unknown): string | number | null {
-  if (!error || typeof error !== "object") return null;
-  const code = (error as Record<string, unknown>).providerCode;
-  return typeof code === "string" || typeof code === "number" ? code : null;
+function safeProviderFailure(error: unknown) {
+  if (!error || typeof error !== "object") return { errorCode: null, subCode: null, subMessage: null, requestId: null };
+  const record = error as Record<string, unknown>;
+  const safeCode = (value: unknown) => typeof value === "string" || typeof value === "number" ? value : null;
+  const safeText = (value: unknown) => typeof value === "string" ? value.slice(0, 160) : null;
+  return {
+    errorCode: safeCode(record.providerCode),
+    subCode: safeCode(record.providerSubCode),
+    subMessage: safeText(record.providerSubMessage),
+    requestId: safeText(record.providerRequestId),
+  };
 }
 
 export function createLivePinduoduoService(options: ServiceOptions = {}) {
@@ -46,6 +57,8 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
   return async function getLivePinduoduoOffers(products: readonly Product[], query: string): Promise<Map<string, LivePinduoduoOffer[]>> {
     const key = query.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
     if (!key) return new Map();
+    const experimentEnabled = process.env.PDD_RECALL_EXPERIMENT === "1"
+      || (process.env.VERCEL_ENV === "production" && PRODUCTION_RECALL_EXPERIMENT_QUERIES.has(key));
     try {
       const client = options.client === undefined ? createPinduoduoClientFromEnv() : options.client;
       if (!client) return new Map();
@@ -57,6 +70,19 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
       let source: "search" | "recommend" = "search";
       if (!goods) {
         const pool = await withDeadline(async (signal) => {
+          if (
+            experimentEnabled
+            && typeof client.getGoodsOptChildren === "function"
+            && typeof client.getGoodsCategoryChildren === "function"
+          ) {
+            const experiment = await runPinduoduoRecallExperiment(
+              client as PinduoduoClient,
+              products,
+              key,
+              signal,
+            );
+            diagnostic({ event: "recall_experiment", ...experiment });
+          }
           const searchedGoods: PinduoduoGoods[] = [];
           for (let page = 1; page <= MAX_SEARCH_PAGES; page += 1) {
             let search;
@@ -64,7 +90,7 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
               search = await client.searchGoods(key, { limit: 100, page }, { signal });
               diagnostic({ event: "api_response", method: "pdd.ddk.goods.search", success: true, providerTotal: search.total, rawCount: search.rawCount, parsedCount: search.goods.length, ...search.parseDiagnostics });
             } catch (error) {
-              diagnostic({ event: "api_response", method: "pdd.ddk.goods.search", success: false, errorCode: safeProviderCode(error) });
+              diagnostic({ event: "api_response", method: "pdd.ddk.goods.search", success: false, ...safeProviderFailure(error) });
               throw error;
             }
             if (!search.goods.length) {
@@ -75,7 +101,7 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
                 diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: true, providerTotal: recommend.total, rawCount: recommend.rawCount, parsedCount: recommend.goods.length, ...recommend.parseDiagnostics });
                 return recommend.goods;
               } catch (error) {
-                diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: false, errorCode: safeProviderCode(error) });
+                diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: false, ...safeProviderFailure(error) });
                 throw error;
               }
             }
@@ -85,7 +111,7 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
             if (selectLivePinduoduoOffersWithDiagnostics(products, key, searchedGoods).offers.size > 0) return searchedGoods;
           }
           return searchedGoods;
-        }, timeoutMs);
+        }, experimentEnabled ? Math.max(timeoutMs, RECALL_EXPERIMENT_DEADLINE_MS) : timeoutMs);
         // Whitelist parsed public fields. Never retain request signing material,
         // goods_sign, response envelopes, arbitrary extra properties or errors.
         goods = pool.slice(0, MAX_GOODS_PER_QUERY).map(publicGoods);

@@ -7,10 +7,22 @@ import { PlatformAuthError, PlatformRequestError, toSafePlatformError } from "./
 const PINDUODUO_API_ROUTER = "https://gw-api.pinduoduo.com/api/router";
 const RECOMMEND_METHOD = "pdd.ddk.goods.recommend.get";
 const SEARCH_METHOD = "pdd.ddk.goods.search";
+const GOODS_OPT_METHOD = "pdd.goods.opt.get";
+const GOODS_CATEGORY_METHOD = "pdd.goods.cats.get";
 
 type RequestValue = string | number | boolean;
 type RequestParameters = Record<string, RequestValue>;
 type PinduoduoRequestOptions = { signal?: AbortSignal };
+type PinduoduoSearchOptions = {
+  limit?: number;
+  page?: number;
+  optId?: number;
+  catId?: number;
+  useCustomized?: boolean;
+  listId?: string;
+};
+
+export type PinduoduoCategoryNode = { id: number; name: string; parentId: number; level: number };
 
 export type PinduoduoGoods = {
   goodsId: string;
@@ -95,6 +107,22 @@ function safeUrl(value: unknown): string | null {
   } catch {
     return null;
   }
+}
+
+function sanitizedProviderMessage(value: unknown): string | null {
+  const text = optionalString(value);
+  if (!text) return null;
+  return text
+    .replace(/https?:\/\/\S+/gi, "[URL]")
+    .replace(/\b(?:pid|sign|token|secret)\s*[=:]\s*[^\s，,；;]+/gi, (entry) => `${entry.split(/[=:]/, 1)[0]}=[REDACTED]`)
+    .replace(/\b\d{12,}\b/g, "[REDACTED]")
+    .replace(/\s+/g, " ")
+    .slice(0, 160);
+}
+
+function safeProviderIdentifier(value: unknown): string | null {
+  const text = optionalString(value);
+  return text && /^[a-zA-Z0-9_-]{1,128}$/.test(text) ? text : null;
 }
 
 /** Converts Pinduoduo money fields documented in fen into PriceAI yuan values. */
@@ -188,9 +216,17 @@ function parsePinduoduoGoodsResponse(
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new PlatformRequestError("pdd");
   const root = value as Record<string, unknown>;
   if (root.error_response && typeof root.error_response === "object" && !Array.isArray(root.error_response)) {
-    const providerCode = finiteNumber((root.error_response as Record<string, unknown>).error_code)
-      ?? optionalString((root.error_response as Record<string, unknown>).error_code);
-    throw new PlatformRequestError("pdd", null, providerCode);
+    const providerError = root.error_response as Record<string, unknown>;
+    const providerCode = finiteNumber(providerError.error_code) ?? optionalString(providerError.error_code);
+    const providerSubCode = finiteNumber(providerError.sub_code) ?? optionalString(providerError.sub_code);
+    throw new PlatformRequestError(
+      "pdd",
+      null,
+      providerCode,
+      providerSubCode,
+      sanitizedProviderMessage(providerError.sub_msg),
+      safeProviderIdentifier(providerError.request_id),
+    );
   }
   const response = root[responseKey];
   if (!response || typeof response !== "object" || Array.isArray(response)) throw new PlatformRequestError("pdd");
@@ -262,7 +298,7 @@ export class PinduoduoClient {
 
   async searchGoods(
     query: string,
-    { limit = 20, page = 1 }: { limit?: number; page?: number } = {},
+    { limit = 20, page = 1, optId, catId, useCustomized, listId }: PinduoduoSearchOptions = {},
     requestOptions: PinduoduoRequestOptions = {},
   ): Promise<PinduoduoGoodsResponse> {
     const fetchedAt = this.now();
@@ -276,9 +312,73 @@ export class PinduoduoClient {
       keyword: query,
       page: boundedInteger(page, 1, 1, Number.MAX_SAFE_INTEGER),
       page_size: boundedInteger(limit, 20, 1, 100),
+      ...(Number.isSafeInteger(optId) && Number(optId) >= 0 ? { opt_id: Number(optId) } : {}),
+      ...(Number.isSafeInteger(catId) && Number(catId) >= 0 ? { cat_id: Number(catId) } : {}),
+      ...(typeof useCustomized === "boolean" ? { use_customized: useCustomized } : {}),
+      ...(optionalString(listId) ? { list_id: optionalString(listId)! } : {}),
     };
     return parsePinduoduoSearchResponse(await this.request(parameters, requestOptions), fetchedAt);
   }
+
+  async getGoodsOptChildren(parentId = 0, requestOptions: PinduoduoRequestOptions = {}): Promise<PinduoduoCategoryNode[]> {
+    const value = await this.request({
+      type: GOODS_OPT_METHOD,
+      client_id: this.options.clientId,
+      timestamp: Math.floor(this.now().getTime() / 1000),
+      data_type: "JSON",
+      version: "V1",
+      parent_opt_id: nonNegativeInteger(parentId),
+    }, requestOptions);
+    return parseCategoryNodes(value, "goods_opt_get_response", "goods_opt_list", "opt_id", "opt_name", "parent_opt_id");
+  }
+
+  async getGoodsCategoryChildren(parentId = 0, requestOptions: PinduoduoRequestOptions = {}): Promise<PinduoduoCategoryNode[]> {
+    const value = await this.request({
+      type: GOODS_CATEGORY_METHOD,
+      client_id: this.options.clientId,
+      timestamp: Math.floor(this.now().getTime() / 1000),
+      data_type: "JSON",
+      version: "V1",
+      parent_cat_id: nonNegativeInteger(parentId),
+    }, requestOptions);
+    return parseCategoryNodes(value, "goods_cats_get_response", "goods_cats_list", "cat_id", "cat_name", "parent_cat_id");
+  }
+}
+
+function parseCategoryNodes(
+  value: unknown,
+  responseKey: string,
+  listKey: string,
+  idKey: string,
+  nameKey: string,
+  parentKey: string,
+): PinduoduoCategoryNode[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new PlatformRequestError("pdd");
+  const root = value as Record<string, unknown>;
+  if (root.error_response && typeof root.error_response === "object" && !Array.isArray(root.error_response)) {
+    const error = root.error_response as Record<string, unknown>;
+    throw new PlatformRequestError(
+      "pdd", null,
+      finiteNumber(error.error_code) ?? optionalString(error.error_code),
+      finiteNumber(error.sub_code) ?? optionalString(error.sub_code),
+      sanitizedProviderMessage(error.sub_msg), safeProviderIdentifier(error.request_id),
+    );
+  }
+  const response = root[responseKey];
+  if (!response || typeof response !== "object" || Array.isArray(response)) throw new PlatformRequestError("pdd");
+  const list = (response as Record<string, unknown>)[listKey];
+  if (!Array.isArray(list)) return [];
+  return list.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const item = entry as Record<string, unknown>;
+    const id = finiteNumber(item[idKey]);
+    const name = optionalString(item[nameKey]);
+    const parentId = finiteNumber(item[parentKey]);
+    const level = finiteNumber(item.level);
+    return id !== null && name && parentId !== null && level !== null
+      ? [{ id, name, parentId, level }]
+      : [];
+  });
 }
 
 export function createPinduoduoClientFromEnv(): PinduoduoClient | null {
