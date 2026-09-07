@@ -33,7 +33,7 @@ describe("live Pinduoduo service", () => {
     const before = structuredClone(product);
     const result = await createLivePinduoduoService({ client })([product], "iphone16");
     expect(result.get(product.id)).toEqual([expect.objectContaining({ goodsId: "123", price: 5000, source: "live" })]);
-    expect(client.searchGoods).toHaveBeenCalledWith("iphone16", { limit: 100 }, { signal: expect.any(AbortSignal) });
+    expect(client.searchGoods).toHaveBeenCalledWith("iphone16", { limit: 100, page: 1 }, { signal: expect.any(AbortSignal) });
     expect(client.getRecommendedGoods).not.toHaveBeenCalled();
     expect(product).toEqual(before);
   });
@@ -103,10 +103,21 @@ describe("live Pinduoduo service", () => {
     expect(client.getRecommendedGoods).not.toHaveBeenCalled();
   });
 
-  it("returns empty for nonqualifying search goods without consulting recommendations", async () => {
+  it("continues to a bounded next search page when the first page only contains accessories", async () => {
+    const client = clientFixture();
+    client.searchGoods
+      .mockResolvedValueOnce(response([{ ...goods, goodsName: "iPhone16 手机壳" }]))
+      .mockResolvedValueOnce(response([goods]));
+    expect((await createLivePinduoduoService({ client })([product], "iphone16")).get(product.id)?.[0].goodsId).toBe("123");
+    expect(client.searchGoods).toHaveBeenNthCalledWith(2, "iphone16", { limit: 100, page: 2 }, { signal: expect.any(AbortSignal) });
+    expect(client.getRecommendedGoods).not.toHaveBeenCalled();
+  });
+
+  it("bounds accessory-only search pagination and returns the catalog fallback", async () => {
     const client = clientFixture();
     client.searchGoods.mockResolvedValue(response([{ ...goods, goodsName: "iPhone16 手机壳" }]));
     expect(await createLivePinduoduoService({ client })([product], "iphone16")).toEqual(new Map());
+    expect(client.searchGoods).toHaveBeenCalledTimes(5);
     expect(client.getRecommendedGoods).not.toHaveBeenCalled();
   });
 

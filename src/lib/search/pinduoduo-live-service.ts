@@ -6,6 +6,7 @@ import { selectLivePinduoduoOffersWithDiagnostics, type LivePinduoduoOffer } fro
 
 const CACHE_TTL_MS = 600_000;
 const MAX_GOODS_PER_QUERY = 400;
+const MAX_SEARCH_PAGES = 5;
 const DEFAULT_REQUEST_DEADLINE_MS = 8_000;
 
 export type PinduoduoGoodsCache = Map<string, { expiresAt: number; goods: PinduoduoGoods[] }>;
@@ -56,24 +57,34 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
       let source: "search" | "recommend" = "search";
       if (!goods) {
         const pool = await withDeadline(async (signal) => {
-          let search;
-          try {
-            search = await client.searchGoods(key, { limit: 100 }, { signal });
-            diagnostic({ event: "api_response", method: "pdd.ddk.goods.search", success: true, providerTotal: search.total, rawCount: search.rawCount, parsedCount: search.goods.length, ...search.parseDiagnostics });
-          } catch (error) {
-            diagnostic({ event: "api_response", method: "pdd.ddk.goods.search", success: false, errorCode: safeProviderCode(error) });
-            throw error;
+          const searchedGoods: PinduoduoGoods[] = [];
+          for (let page = 1; page <= MAX_SEARCH_PAGES; page += 1) {
+            let search;
+            try {
+              search = await client.searchGoods(key, { limit: 100, page }, { signal });
+              diagnostic({ event: "api_response", method: "pdd.ddk.goods.search", success: true, providerTotal: search.total, rawCount: search.rawCount, parsedCount: search.goods.length, ...search.parseDiagnostics });
+            } catch (error) {
+              diagnostic({ event: "api_response", method: "pdd.ddk.goods.search", success: false, errorCode: safeProviderCode(error) });
+              throw error;
+            }
+            if (!search.goods.length) {
+              if (page > 1 || searchedGoods.length) return searchedGoods;
+              source = "recommend";
+              try {
+                const recommend = await client.getRecommendedGoods({ limit: MAX_GOODS_PER_QUERY }, { signal });
+                diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: true, providerTotal: recommend.total, rawCount: recommend.rawCount, parsedCount: recommend.goods.length, ...recommend.parseDiagnostics });
+                return recommend.goods;
+              } catch (error) {
+                diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: false, errorCode: safeProviderCode(error) });
+                throw error;
+              }
+            }
+            searchedGoods.push(...search.goods);
+            // Keep the strict subject/accessory gate. Pagination only gives the
+            // provider more chances to return a qualifying whole product.
+            if (selectLivePinduoduoOffersWithDiagnostics(products, key, searchedGoods).offers.size > 0) return searchedGoods;
           }
-          if (search.goods.length) return search.goods;
-          source = "recommend";
-          try {
-            const recommend = await client.getRecommendedGoods({ limit: MAX_GOODS_PER_QUERY }, { signal });
-            diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: true, providerTotal: recommend.total, rawCount: recommend.rawCount, parsedCount: recommend.goods.length, ...recommend.parseDiagnostics });
-            return recommend.goods;
-          } catch (error) {
-            diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: false, errorCode: safeProviderCode(error) });
-            throw error;
-          }
+          return searchedGoods;
         }, timeoutMs);
         // Whitelist parsed public fields. Never retain request signing material,
         // goods_sign, response envelopes, arbitrary extra properties or errors.
