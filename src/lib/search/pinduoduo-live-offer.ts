@@ -1,6 +1,6 @@
 import type { PinduoduoGoods } from "@/lib/platforms/pinduoduo-client";
 import type { Product } from "@/types/catalog";
-import { classifyPinduoduoGoods, pinduoduoTokens, scorePinduoduoRelevance } from "./pinduoduo-relevance";
+import { classifyPinduoduoGoodsWithReason, pinduoduoTokens, scorePinduoduoRelevance, type PinduoduoClassificationReason } from "./pinduoduo-relevance";
 
 type ComparablePrice = { price: number; normalPrice?: number; groupPrice?: number; couponPrice?: number };
 
@@ -29,8 +29,18 @@ export type LivePinduoduoOffer = ComparablePrice & {
 
 export type PinduoduoSelectionDiagnostics = {
   inputCount: number;
-  accessoryCount: number;
-  unrelatedCount: number;
+  candidatePairCount: number;
+  uniqueAccessoryGoodsCount: number;
+  accessoryPairCount: number;
+  unrelatedPairCount: number;
+  accessoryKeywordPairCount: number;
+  nonRetailModelPairCount: number;
+  replacementPartPairCount: number;
+  modelMismatchPairCount: number;
+  suffixMismatchPairCount: number;
+  queryMismatchPairCount: number;
+  missingPhoneEvidencePairCount: number;
+  emptyQueryPairCount: number;
   invalidPriceCount: number;
   invalidIdentityCount: number;
   eligibleCount: number;
@@ -38,6 +48,17 @@ export type PinduoduoSelectionDiagnostics = {
   selectedCount: number;
   matchedProductCount: number;
   matchedVariantCount: number;
+};
+
+const diagnosticReasonFields: Record<Exclude<PinduoduoClassificationReason, "subject">, keyof PinduoduoSelectionDiagnostics> = {
+  accessory_keyword: "accessoryKeywordPairCount",
+  non_retail_model: "nonRetailModelPairCount",
+  replacement_part: "replacementPartPairCount",
+  model_mismatch: "modelMismatchPairCount",
+  suffix_mismatch: "suffixMismatchPairCount",
+  query_mismatch: "queryMismatchPairCount",
+  missing_phone_evidence: "missingPhoneEvidencePairCount",
+  empty_query: "emptyQueryPairCount",
 };
 
 function positive(value: unknown): value is number {
@@ -105,21 +126,34 @@ function compareOffers(left: LivePinduoduoOffer, right: LivePinduoduoOffer): num
 export function selectLivePinduoduoOffersWithDiagnostics(products: readonly Product[], query: string, goods: readonly PinduoduoGoods[], limitPerProduct = 5): { offers: Map<string, LivePinduoduoOffer[]>; diagnostics: PinduoduoSelectionDiagnostics } {
   const results = new Map<string, LivePinduoduoOffer[]>();
   const diagnostics: PinduoduoSelectionDiagnostics = {
-    inputCount: goods.length, accessoryCount: 0, unrelatedCount: 0,
+    inputCount: goods.length, candidatePairCount: goods.length * products.length,
+    uniqueAccessoryGoodsCount: 0, accessoryPairCount: 0, unrelatedPairCount: 0,
+    accessoryKeywordPairCount: 0, nonRetailModelPairCount: 0, replacementPartPairCount: 0,
+    modelMismatchPairCount: 0, suffixMismatchPairCount: 0, queryMismatchPairCount: 0,
+    missingPhoneEvidencePairCount: 0, emptyQueryPairCount: 0,
     invalidPriceCount: 0, invalidIdentityCount: 0, eligibleCount: 0,
     deduplicatedCount: 0, selectedCount: 0, matchedProductCount: 0, matchedVariantCount: 0,
   };
   const limit = Number.isFinite(limitPerProduct) ? Math.max(0, Math.floor(limitPerProduct)) : 5;
   if (!query.trim() || limit === 0) return { offers: results, diagnostics };
+  if (products.length) {
+    diagnostics.uniqueAccessoryGoodsCount = goods.filter((item) =>
+      classifyPinduoduoGoodsWithReason(query, products[0], item).classification === "accessory").length;
+  }
   for (const product of products) {
     const offers: LivePinduoduoOffer[] = [];
     for (const item of goods) {
-      const classification = classifyPinduoduoGoods(query, product, item);
-      if (classification === "accessory") { diagnostics.accessoryCount += 1; continue; }
-      if (classification === "unrelated") { diagnostics.unrelatedCount += 1; continue; }
+      const classified = classifyPinduoduoGoodsWithReason(query, product, item);
+      if (classified.classification !== "subject") {
+        if (classified.classification === "accessory") diagnostics.accessoryPairCount += 1;
+        else diagnostics.unrelatedPairCount += 1;
+        const field = diagnosticReasonFields[classified.reason as Exclude<PinduoduoClassificationReason, "subject">];
+        (diagnostics[field] as number) += 1;
+        continue;
+      }
       const relevance = scorePinduoduoRelevance(query, product, item);
       const prices = selectComparablePinduoduoPrice(item);
-      if (relevance < 100) { diagnostics.unrelatedCount += 1; continue; }
+      if (relevance < 100) { diagnostics.unrelatedPairCount += 1; continue; }
       if (!prices) { diagnostics.invalidPriceCount += 1; continue; }
       if (!item.goodsId.trim() || !Number.isFinite(item.fetchedAt.getTime())) { diagnostics.invalidIdentityCount += 1; continue; }
       const variantId = matchingVariantId(product, item.goodsName);

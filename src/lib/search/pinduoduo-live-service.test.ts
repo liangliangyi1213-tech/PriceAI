@@ -55,7 +55,7 @@ describe("live Pinduoduo service", () => {
     expect(events).toEqual([
       { event: "api_response", method: "pdd.ddk.goods.search", success: true, providerTotal: 0, rawCount: 0, parsedCount: 0, ...emptyParseDiagnostics },
       { event: "api_response", method: "pdd.ddk.goods.recommend.get", success: true, providerTotal: 1, rawCount: 1, parsedCount: 1, ...emptyParseDiagnostics },
-      { event: "selection", source: "recommend", inputCount: 1, accessoryCount: 0, unrelatedCount: 0, invalidPriceCount: 0, invalidIdentityCount: 0, eligibleCount: 1, deduplicatedCount: 1, selectedCount: 1, matchedProductCount: 1, matchedVariantCount: 1 },
+      { event: "selection", source: "recommend", inputCount: 1, candidatePairCount: 1, uniqueAccessoryGoodsCount: 0, accessoryPairCount: 0, unrelatedPairCount: 0, accessoryKeywordPairCount: 0, nonRetailModelPairCount: 0, replacementPartPairCount: 0, modelMismatchPairCount: 0, suffixMismatchPairCount: 0, queryMismatchPairCount: 0, missingPhoneEvidencePairCount: 0, emptyQueryPairCount: 0, invalidPriceCount: 0, invalidIdentityCount: 0, eligibleCount: 1, deduplicatedCount: 1, selectedCount: 1, matchedProductCount: 1, matchedVariantCount: 1 },
     ]);
     expect(JSON.stringify(events)).not.toMatch(/iphone|123|品牌商城|private/i);
   });

@@ -54,19 +54,35 @@ function hasPhoneEvidence(goods: PinduoduoGoods): boolean {
   return hasPhoneWords(`${goods.goodsName} ${goods.categoryName ?? ""} ${goods.optName ?? ""}`);
 }
 
-export function classifyPinduoduoGoods(query: string, product: Product, goods: PinduoduoGoods): "subject" | "accessory" | "unrelated" {
+export type PinduoduoClassificationReason =
+  | "accessory_keyword" | "non_retail_model" | "replacement_part"
+  | "empty_query" | "model_mismatch" | "suffix_mismatch"
+  | "query_mismatch" | "missing_phone_evidence" | "subject";
+
+export function classifyPinduoduoGoodsWithReason(query: string, product: Product, goods: PinduoduoGoods): {
+  classification: "subject" | "accessory" | "unrelated";
+  reason: PinduoduoClassificationReason;
+} {
   const itemEvidence = [goods.goodsName, goods.categoryName, goods.optName].join(" ");
-  if (ACCESSORIES.test(itemEvidence) || NON_RETAIL_MODELS.test(itemEvidence) || isReplacementPart(goods)) return "accessory";
+  if (ACCESSORIES.test(itemEvidence)) return { classification: "accessory", reason: "accessory_keyword" };
+  if (NON_RETAIL_MODELS.test(itemEvidence)) return { classification: "accessory", reason: "non_retail_model" };
+  if (isReplacementPart(goods)) return { classification: "accessory", reason: "replacement_part" };
   const title = pinduoduoTokens(goods.goodsName);
   const model = pinduoduoTokens(product.name);
   const queryTokens = pinduoduoTokens(query);
-  if (!queryTokens.length || !includesModel(goods.goodsName, model)) return "unrelated";
+  if (!queryTokens.length) return { classification: "unrelated", reason: "empty_query" };
+  if (!includesModel(goods.goodsName, model)) return { classification: "unrelated", reason: "model_mismatch" };
   // A Pro/Max/Plus listing must not be attached to its cheaper base model.
-  if (title.some((token) => MODEL_SUFFIXES.has(token) && !model.includes(token))) return "unrelated";
+  if (title.some((token) => MODEL_SUFFIXES.has(token) && !model.includes(token))) return { classification: "unrelated", reason: "suffix_mismatch" };
   const brand = pinduoduoTokens(product.brand);
   const queryEvidence = [...title, ...brand];
-  if (!includesTokens(queryEvidence, queryTokens) || !hasPhoneEvidence(goods)) return "unrelated";
-  return "subject";
+  if (!includesTokens(queryEvidence, queryTokens)) return { classification: "unrelated", reason: "query_mismatch" };
+  if (!hasPhoneEvidence(goods)) return { classification: "unrelated", reason: "missing_phone_evidence" };
+  return { classification: "subject", reason: "subject" };
+}
+
+export function classifyPinduoduoGoods(query: string, product: Product, goods: PinduoduoGoods): "subject" | "accessory" | "unrelated" {
+  return classifyPinduoduoGoodsWithReason(query, product, goods).classification;
 }
 
 export function scorePinduoduoRelevance(query: string, product: Product, goods: PinduoduoGoods): number {

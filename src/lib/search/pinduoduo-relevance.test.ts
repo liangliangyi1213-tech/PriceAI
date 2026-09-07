@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { phones } from "@/data/phones";
 import type { PinduoduoGoods } from "@/lib/platforms/pinduoduo-client";
-import { classifyPinduoduoGoods, scorePinduoduoRelevance } from "./pinduoduo-relevance";
+import { classifyPinduoduoGoods, classifyPinduoduoGoodsWithReason, scorePinduoduoRelevance } from "./pinduoduo-relevance";
 
 const product = phones.find((item) => item.slug === "apple-iphone-16")!;
 const goods = (goodsName: string, overrides: Partial<PinduoduoGoods> = {}): PinduoduoGoods => ({
@@ -12,6 +12,25 @@ const goods = (goodsName: string, overrides: Partial<PinduoduoGoods> = {}): Pind
 });
 
 describe("Pinduoduo subject relevance", () => {
+  it.each([
+    ["iPhone16 手机壳", "accessory_keyword"],
+    ["iPhone16 手机模型", "non_retail_model"],
+    ["iPhone16 替换电池", "replacement_part"],
+    ["iPhone15 手机", "model_mismatch"],
+    ["iPhone16 Pro 手机", "suffix_mismatch"],
+    ["iPhone16 手机", "query_mismatch", "iphone16 512gb"],
+    ["iPhone16 手机", "subject"],
+  ])("reports a safe deterministic rejection reason for %s", (title, reason, query = "iphone16") => {
+    expect(classifyPinduoduoGoodsWithReason(query, product, goods(title))).toEqual({
+      classification: reason === "subject" ? "subject" : reason.startsWith("accessory") || reason === "non_retail_model" || reason === "replacement_part" ? "accessory" : "unrelated",
+      reason,
+    });
+  });
+  it("reports missing whole-phone evidence separately", () => {
+    expect(classifyPinduoduoGoodsWithReason("iphone16", product, goods("iPhone16", { categoryName: null }))).toEqual({
+      classification: "unrelated", reason: "missing_phone_evidence",
+    });
+  });
   it.each([
     "钢化膜 手机贴膜", "手机贴膜", "水凝膜", "防窥膜", "屏幕保护贴",
     "手机模型 展示机", "手机模型", "模型机", "机模", "展示机", "样板机",

@@ -110,7 +110,12 @@ describe("live Pinduoduo offers", () => {
       goods({ goodsId: "valid" }),
     ]);
     expect(result.diagnostics).toEqual({
-      inputCount: 5, accessoryCount: 1, unrelatedCount: 1, invalidPriceCount: 1,
+      inputCount: 5, candidatePairCount: 5, uniqueAccessoryGoodsCount: 1,
+      accessoryPairCount: 1, unrelatedPairCount: 1,
+      accessoryKeywordPairCount: 1, nonRetailModelPairCount: 0, replacementPartPairCount: 0,
+      modelMismatchPairCount: 1, suffixMismatchPairCount: 0, queryMismatchPairCount: 0,
+      missingPhoneEvidencePairCount: 0, emptyQueryPairCount: 0,
+      invalidPriceCount: 1,
       invalidIdentityCount: 0, eligibleCount: 2, deduplicatedCount: 1,
       selectedCount: 1, matchedProductCount: 1, matchedVariantCount: 1,
     });
