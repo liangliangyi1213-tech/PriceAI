@@ -14,8 +14,11 @@ const RECALL_EXPERIMENT_DEADLINE_MS = 20_000;
 const PRODUCTION_RECALL_EXPERIMENT_QUERIES = new Set(["iphone 16 pro"]);
 const SKU_DIAGNOSTIC_TARGETS = {
   "iphone 16 pro": { productSlug: "apple-iphone-16-pro", productKey: "iphone-16-pro" },
+  "mate 70 pro": { productSlug: "huawei-mate-70-pro", productKey: "mate-70-pro" },
   "小米 15": { productSlug: "xiaomi-15", productKey: "xiaomi-15" },
   "pura 70": { productSlug: "huawei-pura-70", productKey: "pura-70" },
+  "find x8": { productSlug: "oppo-find-x8", productKey: "find-x8" },
+  "x200": { productSlug: "vivo-x200", productKey: "x200" },
 } as const;
 type SkuDiagnosticProductKey = typeof SKU_DIAGNOSTIC_TARGETS[keyof typeof SKU_DIAGNOSTIC_TARGETS]["productKey"];
 
@@ -35,6 +38,7 @@ export type PinduoduoDiagnosticEvent =
   | { event: "api_response"; method: ApiMethod; success: false; errorCode: string | number | null; subCode: string | number | null; subMessage: string | null; requestId: string | null }
   | ({ event: "selection"; source: "search" | "recommend" } & import("./pinduoduo-live-offer").PinduoduoSelectionDiagnostics)
   | ({ event: "recall_experiment" } & RecallExperimentResult)
+  | { event: "sku_detail_candidate_summary"; productKey: SkuDiagnosticProductKey; productLevelCandidateCount: number; queryableCandidateCount: number; detailRequestCount: number }
   | ({ event: "sku_detail_diagnostic"; productKey: SkuDiagnosticProductKey; candidateIndex: number }
       & (import("@/lib/platforms/pinduoduo-client").PinduoduoSkuCapabilitySummary
         | { success: false; skuPermissionStatus: "denied" | "unknown"; errorCode: string | number | null; subCode: string | number | null; subMessage: string | null }));
@@ -146,10 +150,18 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
           const selectedForProduct = product
             ? selectLivePinduoduoOffersWithDiagnostics([product], key, pool).offers.get(product.id) ?? []
             : [];
-          const candidates = selectedForProduct.flatMap((offer) => {
+          const queryableCandidates = selectedForProduct.flatMap((offer) => {
             const item = pool.find((entry) => entry.goodsId === offer.goodsId);
             return item?.goodsSign ? [item] : [];
-          }).slice(0, 2);
+          });
+          const candidates = queryableCandidates.slice(0, 2);
+          diagnostic({
+            event: "sku_detail_candidate_summary",
+            productKey: skuDiagnosticTarget.productKey,
+            productLevelCandidateCount: selectedForProduct.length,
+            queryableCandidateCount: queryableCandidates.length,
+            detailRequestCount: candidates.length,
+          });
           await Promise.all(candidates.map(async (candidate, index) => {
             try {
               const searchId = candidate.searchId ?? poolResult.searchId;

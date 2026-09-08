@@ -10,6 +10,7 @@ const product = phones.find((item) => item.slug === "apple-iphone-16")!;
 const iphone16Pro = phones.find((item) => item.slug === "apple-iphone-16-pro")!;
 const pura70 = phones.find((item) => item.slug === "huawei-pura-70")!;
 const xiaomi15 = phones.find((item) => item.slug === "xiaomi-15")!;
+const mate70Pro = phones.find((item) => item.slug === "huawei-mate-70-pro")!;
 const goods: PinduoduoGoods = {
   goodsId: "123", goodsSign: "private-product-sign", goodsName: "Apple iPhone16 256GB 黑色 手机",
   goodsThumbnailUrl: null, goodsImageUrl: "https://example.com/phone.jpg", categoryName: "手机",
@@ -51,6 +52,29 @@ describe("live Pinduoduo service", () => {
       event: "sku_detail_diagnostic", productKey, candidateIndex: 1,
     }));
     expect(JSON.stringify(events)).not.toMatch(/private|goodsSign|searchId|goodsId|goodsName/);
+  });
+
+  it("reports safe candidate counts when strict product matches cannot be queried for SKU detail", async () => {
+    vi.stubEnv("PDD_SKU_DIAGNOSTIC_ENABLED", "1");
+    const candidates = [
+      { ...goods, goodsId: "private-id-1", goodsSign: null, goodsName: "华为 Mate 70 Pro 全新手机" },
+      { ...goods, goodsId: "private-id-2", goodsSign: null, goodsName: "华为 Mate 70 Pro 全新手机" },
+    ];
+    const client = {
+      ...clientFixture(),
+      searchGoods: vi.fn().mockResolvedValue(response(candidates)),
+      getGoodsDetailCapabilities: vi.fn(),
+    };
+    const events: unknown[] = [];
+
+    await createLivePinduoduoService({ client, diagnostic: (event) => events.push(event) })([mate70Pro], "Mate 70 Pro");
+
+    expect(client.getGoodsDetailCapabilities).not.toHaveBeenCalled();
+    expect(events).toContainEqual({
+      event: "sku_detail_candidate_summary", productKey: "mate-70-pro",
+      productLevelCandidateCount: 2, queryableCandidateCount: 0, detailRequestCount: 0,
+    });
+    expect(JSON.stringify(events)).not.toMatch(/private|goodsId|goodsSign|华为/);
   });
 
   it("diagnoses at most two product-level Pura 70 candidates without exposing private identifiers", async () => {
