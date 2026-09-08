@@ -12,6 +12,12 @@ const MAX_SEARCH_PAGES = 5;
 const DEFAULT_REQUEST_DEADLINE_MS = 8_000;
 const RECALL_EXPERIMENT_DEADLINE_MS = 20_000;
 const PRODUCTION_RECALL_EXPERIMENT_QUERIES = new Set(["iphone 16 pro"]);
+const SKU_DIAGNOSTIC_TARGETS = {
+  "iphone 16 pro": { productSlug: "apple-iphone-16-pro", productKey: "iphone-16-pro" },
+  "小米 15": { productSlug: "xiaomi-15", productKey: "xiaomi-15" },
+  "pura 70": { productSlug: "huawei-pura-70", productKey: "pura-70" },
+} as const;
+type SkuDiagnosticProductKey = typeof SKU_DIAGNOSTIC_TARGETS[keyof typeof SKU_DIAGNOSTIC_TARGETS]["productKey"];
 
 export type PinduoduoGoodsCache = Map<string, { expiresAt: number; goods: PinduoduoGoods[] }>;
 type ServiceOptions = {
@@ -29,7 +35,7 @@ export type PinduoduoDiagnosticEvent =
   | { event: "api_response"; method: ApiMethod; success: false; errorCode: string | number | null; subCode: string | number | null; subMessage: string | null; requestId: string | null }
   | ({ event: "selection"; source: "search" | "recommend" } & import("./pinduoduo-live-offer").PinduoduoSelectionDiagnostics)
   | ({ event: "recall_experiment" } & RecallExperimentResult)
-  | ({ event: "sku_detail_diagnostic"; productKey: "pura-70"; candidateIndex: number }
+  | ({ event: "sku_detail_diagnostic"; productKey: SkuDiagnosticProductKey; candidateIndex: number }
       & (import("@/lib/platforms/pinduoduo-client").PinduoduoSkuCapabilitySummary
         | { success: false; skuPermissionStatus: "denied" | "unknown"; errorCode: string | number | null; subCode: string | number | null; subMessage: string | null }));
 
@@ -130,12 +136,13 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
           return { goods: searchedGoods, searchId: undefined };
         }, experimentEnabled ? Math.max(timeoutMs, RECALL_EXPERIMENT_DEADLINE_MS) : timeoutMs);
         const pool = poolResult.goods;
+        const skuDiagnosticTarget = SKU_DIAGNOSTIC_TARGETS[key as keyof typeof SKU_DIAGNOSTIC_TARGETS];
         if (
           process.env.PDD_SKU_DIAGNOSTIC_ENABLED === "1"
-          && key === "pura 70"
+          && skuDiagnosticTarget
           && typeof client.getGoodsDetailCapabilities === "function"
         ) {
-          const product = products.find((item) => item.slug === "huawei-pura-70");
+          const product = products.find((item) => item.slug === skuDiagnosticTarget.productSlug);
           const selectedForProduct = product
             ? selectLivePinduoduoOffersWithDiagnostics([product], key, pool).offers.get(product.id) ?? []
             : [];
@@ -150,9 +157,9 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
                 goodsSign: candidate.goodsSign!,
                 ...(searchId ? { searchId } : {}),
               }, { signal }), timeoutMs);
-              diagnostic({ event: "sku_detail_diagnostic", productKey: "pura-70", candidateIndex: index + 1, ...summary });
+              diagnostic({ event: "sku_detail_diagnostic", productKey: skuDiagnosticTarget.productKey, candidateIndex: index + 1, ...summary });
             } catch (error) {
-              diagnostic({ event: "sku_detail_diagnostic", productKey: "pura-70", candidateIndex: index + 1, ...safeSkuFailure(error) });
+              diagnostic({ event: "sku_detail_diagnostic", productKey: skuDiagnosticTarget.productKey, candidateIndex: index + 1, ...safeSkuFailure(error) });
             }
           }));
         }

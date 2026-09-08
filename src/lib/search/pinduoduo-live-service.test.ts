@@ -7,7 +7,9 @@ import type { PinduoduoGoods } from "@/lib/platforms/pinduoduo-client";
 import { createLivePinduoduoService, type PinduoduoGoodsCache } from "./pinduoduo-live-service";
 
 const product = phones.find((item) => item.slug === "apple-iphone-16")!;
+const iphone16Pro = phones.find((item) => item.slug === "apple-iphone-16-pro")!;
 const pura70 = phones.find((item) => item.slug === "huawei-pura-70")!;
+const xiaomi15 = phones.find((item) => item.slug === "xiaomi-15")!;
 const goods: PinduoduoGoods = {
   goodsId: "123", goodsSign: "private-product-sign", goodsName: "Apple iPhone16 256GB 黑色 手机",
   goodsThumbnailUrl: null, goodsImageUrl: "https://example.com/phone.jpg", categoryName: "手机",
@@ -22,6 +24,35 @@ const clientFixture = () => ({ searchGoods: vi.fn().mockResolvedValue(response()
 afterEach(() => vi.unstubAllEnvs());
 
 describe("live Pinduoduo service", () => {
+  it.each([
+    { query: "iPhone 16 Pro", target: iphone16Pro, goodsName: "Apple iPhone 16 Pro 全新手机", productKey: "iphone-16-pro" },
+    { query: "小米 15", target: xiaomi15, goodsName: "小米 15 全新手机", productKey: "xiaomi-15" },
+  ])("runs the bounded SKU capability diagnostic for $productKey", async ({ query, target, goodsName, productKey }) => {
+    vi.stubEnv("PDD_SKU_DIAGNOSTIC_ENABLED", "1");
+    const candidates = [1, 2, 3].map((index) => ({
+      ...goods, goodsId: `${productKey}-${index}`, goodsSign: `private-sign-${index}`,
+      goodsName, minNormalPrice: 3999 + index,
+    }));
+    const client = {
+      ...clientFixture(),
+      searchGoods: vi.fn().mockResolvedValue({ ...response(candidates), searchId: "private-search-id" }),
+      getGoodsDetailCapabilities: vi.fn().mockResolvedValue({
+        success: true, skuPermissionStatus: "not_returned", skuCount: 0,
+        skuWithAttributeNameCount: 0, skuWithAttributeValueCount: 0, skuWithPriceCount: 0,
+        hasCapacity: false, hasColor: false, hasRegionOrVersion: false, hasCondition: false,
+      }),
+    };
+    const events: unknown[] = [];
+
+    await createLivePinduoduoService({ client, diagnostic: (event) => events.push(event) })([target], query);
+
+    expect(client.getGoodsDetailCapabilities).toHaveBeenCalledTimes(2);
+    expect(events).toContainEqual(expect.objectContaining({
+      event: "sku_detail_diagnostic", productKey, candidateIndex: 1,
+    }));
+    expect(JSON.stringify(events)).not.toMatch(/private|goodsSign|searchId|goodsId|goodsName/);
+  });
+
   it("diagnoses at most two product-level Pura 70 candidates without exposing private identifiers", async () => {
     vi.stubEnv("PDD_SKU_DIAGNOSTIC_ENABLED", "1");
     const candidates = [1, 2, 3].map((index) => ({
