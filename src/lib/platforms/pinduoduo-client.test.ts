@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}));
 import {
   fenToYuan,
   parsePinduoduoRecommendResponse,
+  parsePinduoduoGoodsDetailResponse,
   parsePinduoduoSearchResponse,
   PinduoduoClient,
   signPinduoduoRequest,
@@ -75,6 +76,32 @@ describe("Pinduoduo legacy type compatibility", () => {
 });
 
 describe("Pinduoduo response parsing", () => {
+  it("summarizes SKU capability without retaining identifiers or specification values", () => {
+    const summary = parsePinduoduoGoodsDetailResponse({
+      goods_detail_response: { goods_details: [{
+        goods_sign: "private-sign", goods_id: 123, goods_name: "private-title",
+        sku_list: [
+          { min_group_price: 469900, spec_list: [{ parent_spec_value: "存储容量", spec_value: "256GB" }, { parent_spec_value: "机身颜色", spec_value: "黑色" }] },
+          { spec_list: [{ parent_spec_value: "版本", spec_value: "国行" }, { parent_spec_value: "成色", spec_value: "全新" }] },
+        ],
+      }] },
+    });
+
+    expect(summary).toEqual({
+      success: true, skuPermissionStatus: "available", skuCount: 2,
+      skuWithAttributeNameCount: 2, skuWithAttributeValueCount: 2, skuWithPriceCount: 1,
+      hasCapacity: true, hasColor: true, hasRegionOrVersion: true, hasCondition: true,
+    });
+    expect(JSON.stringify(summary)).not.toMatch(/private|256GB|黑色|国行|全新|123/);
+  });
+
+  it("does not claim permission denial when SKU data is not returned", () => {
+    expect(parsePinduoduoGoodsDetailResponse({ goods_detail_response: { goods_details: [{}] } })).toEqual({
+      success: true, skuPermissionStatus: "not_returned", skuCount: 0,
+      skuWithAttributeNameCount: 0, skuWithAttributeValueCount: 0, skuWithPriceCount: 0,
+      hasCapacity: false, hasColor: false, hasRegionOrVersion: false, hasCondition: false,
+    });
+  });
   it("converts documented fen-denominated money fields to yuan", () => {
     expect(fenToYuan(10999)).toBe(109.99);
     expect(fenToYuan(0)).toBe(0);
@@ -271,6 +298,25 @@ describe("PinduoduoClient", () => {
       page: "2",
       page_size: "30",
       sign: expect.stringMatching(/^[A-F0-9]{32}$/),
+    });
+  });
+
+  it("requests SKU detail capability with server-only search identifiers", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({
+      goods_detail_response: { goods_details: [{ sku_list: [] }] },
+    }));
+    const client = new PinduoduoClient({
+      clientId: "test_client", clientSecret: "test_secret", pid: "test_pid", fetcher,
+      now: () => new Date("2020-09-13T12:26:40.000Z"),
+    });
+
+    await client.getGoodsDetailCapabilities({ goodsSign: "private-goods-sign", searchId: "private-search-id" });
+
+    const body = new URLSearchParams(String(fetcher.mock.calls[0][1]?.body));
+    expect(Object.fromEntries(body)).toMatchObject({
+      type: "pdd.ddk.goods.detail", client_id: "test_client", pid: "test_pid",
+      goods_sign: "private-goods-sign", search_id: "private-search-id",
+      need_sku_info: "true", sign: expect.stringMatching(/^[A-F0-9]{32}$/),
     });
   });
 

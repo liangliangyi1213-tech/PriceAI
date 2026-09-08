@@ -9,6 +9,7 @@ const RECOMMEND_METHOD = "pdd.ddk.goods.recommend.get";
 const SEARCH_METHOD = "pdd.ddk.goods.search";
 const GOODS_OPT_METHOD = "pdd.goods.opt.get";
 const GOODS_CATEGORY_METHOD = "pdd.goods.cats.get";
+const GOODS_DETAIL_METHOD = "pdd.ddk.goods.detail";
 
 type RequestValue = string | number | boolean;
 type RequestParameters = Record<string, RequestValue>;
@@ -27,6 +28,8 @@ export type PinduoduoCategoryNode = { id: number; name: string; parentId: number
 export type PinduoduoGoods = {
   goodsId: string;
   goodsSign: string | null;
+  /** Provider search-chain identifier; server memory only and removed before caching. */
+  searchId?: string;
   goodsName: string;
   goodsThumbnailUrl: string | null;
   goodsImageUrl: string | null;
@@ -57,6 +60,21 @@ export type PinduoduoGoodsResponse = {
   rawCount: number;
   parseDiagnostics: PinduoduoParseDiagnostics;
   goods: PinduoduoGoods[];
+  /** Search-chain identifier; server memory only and never part of public goods. */
+  searchId?: string;
+};
+
+export type PinduoduoSkuCapabilitySummary = {
+  success: true;
+  skuPermissionStatus: "available" | "not_returned";
+  skuCount: number;
+  skuWithAttributeNameCount: number;
+  skuWithAttributeValueCount: number;
+  skuWithPriceCount: number;
+  hasCapacity: boolean;
+  hasColor: boolean;
+  hasRegionOrVersion: boolean;
+  hasCondition: boolean;
 };
 
 export type PinduoduoParseDiagnostics = {
@@ -232,11 +250,70 @@ function parsePinduoduoGoodsResponse(
   if (!response || typeof response !== "object" || Array.isArray(response)) throw new PlatformRequestError("pdd");
   const payload = response as Record<string, unknown>;
   const list = Array.isArray(payload[listKey]) ? payload[listKey] : [];
+  const searchId = optionalString(payload.search_id);
+  const goods = list.map((item) => parseGoods(item, fetchedAt)).filter((item): item is PinduoduoGoods => item !== null)
+    .map((item) => searchId ? { ...item, searchId } : item);
   return {
     total: Math.max(0, Math.floor(finiteNumber(payload[totalKey]) ?? list.length)),
     rawCount: list.length,
     parseDiagnostics: parseDiagnostics(list),
-    goods: list.map((item) => parseGoods(item, fetchedAt)).filter((item): item is PinduoduoGoods => item !== null),
+    goods,
+    ...(searchId ? { searchId } : {}),
+  };
+}
+
+export function parsePinduoduoGoodsDetailResponse(value: unknown): PinduoduoSkuCapabilitySummary {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new PlatformRequestError("pdd");
+  const root = value as Record<string, unknown>;
+  if (root.error_response && typeof root.error_response === "object" && !Array.isArray(root.error_response)) {
+    const error = root.error_response as Record<string, unknown>;
+    throw new PlatformRequestError(
+      "pdd", null,
+      finiteNumber(error.error_code) ?? optionalString(error.error_code),
+      finiteNumber(error.sub_code) ?? optionalString(error.sub_code),
+      sanitizedProviderMessage(error.sub_msg), safeProviderIdentifier(error.request_id),
+    );
+  }
+  const response = root.goods_detail_response;
+  if (!response || typeof response !== "object" || Array.isArray(response)) throw new PlatformRequestError("pdd");
+  const details = (response as Record<string, unknown>).goods_details;
+  const detail = Array.isArray(details) && details[0] && typeof details[0] === "object" && !Array.isArray(details[0])
+    ? details[0] as Record<string, unknown> : {};
+  const skuList = Array.isArray(detail.sku_list) ? detail.sku_list : [];
+  let skuWithAttributeNameCount = 0;
+  let skuWithAttributeValueCount = 0;
+  let skuWithPriceCount = 0;
+  let hasCapacity = false;
+  let hasColor = false;
+  let hasRegionOrVersion = false;
+  let hasCondition = false;
+  for (const entry of skuList) {
+    const sku = entry && typeof entry === "object" && !Array.isArray(entry) ? entry as Record<string, unknown> : {};
+    const specs = Array.isArray(sku.spec_list) ? sku.spec_list : [];
+    let hasName = false;
+    let hasValue = false;
+    for (const specEntry of specs) {
+      const spec = specEntry && typeof specEntry === "object" && !Array.isArray(specEntry) ? specEntry as Record<string, unknown> : {};
+      const name = optionalString(spec.parent_spec_value);
+      const specValue = optionalString(spec.spec_value);
+      if (name) hasName = true;
+      if (specValue) hasValue = true;
+      if (!name || !specValue) continue;
+      if (/^(?:容量|存储容量|机身存储)$/.test(name)) hasCapacity = true;
+      if (/^(?:颜色|机身颜色)$/.test(name)) hasColor = true;
+      if (/^(?:版本|销售版本|地区版本|网络版本)$/.test(name)) hasRegionOrVersion = true;
+      if (/^(?:成色|商品状态|新旧程度)$/.test(name)) hasCondition = true;
+    }
+    if (hasName) skuWithAttributeNameCount += 1;
+    if (hasValue) skuWithAttributeValueCount += 1;
+    if ((finiteNumber(sku.min_group_price) ?? 0) > 0) skuWithPriceCount += 1;
+  }
+  return {
+    success: true,
+    skuPermissionStatus: skuList.length ? "available" : "not_returned",
+    skuCount: skuList.length,
+    skuWithAttributeNameCount, skuWithAttributeValueCount, skuWithPriceCount,
+    hasCapacity, hasColor, hasRegionOrVersion, hasCondition,
   };
 }
 
@@ -345,6 +422,25 @@ export class PinduoduoClient {
       parent_cat_id: nonNegativeInteger(parentId),
     }, requestOptions);
     return parseCategoryNodes(value, "goods_cats_get_response", "goods_cats_list", "cat_id", "cat_name", "parent_cat_id");
+  }
+
+  async getGoodsDetailCapabilities(
+    { goodsSign, searchId }: { goodsSign: string; searchId?: string },
+    requestOptions: PinduoduoRequestOptions = {},
+  ): Promise<PinduoduoSkuCapabilitySummary> {
+    const fetchedAt = this.now();
+    const parameters: RequestParameters = {
+      type: GOODS_DETAIL_METHOD,
+      client_id: this.options.clientId,
+      timestamp: Math.floor(fetchedAt.getTime() / 1000),
+      data_type: "JSON",
+      version: "V1",
+      pid: this.options.pid,
+      goods_sign: goodsSign,
+      need_sku_info: true,
+      ...(optionalString(searchId) ? { search_id: optionalString(searchId)! } : {}),
+    };
+    return parsePinduoduoGoodsDetailResponse(await this.request(parameters, requestOptions));
   }
 }
 

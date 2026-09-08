@@ -15,7 +15,7 @@ const PRODUCTION_RECALL_EXPERIMENT_QUERIES = new Set(["iphone 16 pro"]);
 
 export type PinduoduoGoodsCache = Map<string, { expiresAt: number; goods: PinduoduoGoods[] }>;
 type ServiceOptions = {
-  client?: (Pick<PinduoduoClient, "searchGoods" | "getRecommendedGoods"> & Partial<Pick<PinduoduoClient, "getGoodsOptChildren" | "getGoodsCategoryChildren">>) | null;
+  client?: (Pick<PinduoduoClient, "searchGoods" | "getRecommendedGoods"> & Partial<Pick<PinduoduoClient, "getGoodsOptChildren" | "getGoodsCategoryChildren" | "getGoodsDetailCapabilities">>) | null;
   cache?: PinduoduoGoodsCache;
   now?: () => number;
   maxCacheEntries?: number;
@@ -28,7 +28,10 @@ export type PinduoduoDiagnosticEvent =
   | ({ event: "api_response"; method: ApiMethod; success: true; providerTotal: number; rawCount: number; parsedCount: number } & import("@/lib/platforms/pinduoduo-client").PinduoduoParseDiagnostics)
   | { event: "api_response"; method: ApiMethod; success: false; errorCode: string | number | null; subCode: string | number | null; subMessage: string | null; requestId: string | null }
   | ({ event: "selection"; source: "search" | "recommend" } & import("./pinduoduo-live-offer").PinduoduoSelectionDiagnostics)
-  | ({ event: "recall_experiment" } & RecallExperimentResult);
+  | ({ event: "recall_experiment" } & RecallExperimentResult)
+  | ({ event: "sku_detail_diagnostic"; productKey: "pura-70"; candidateIndex: number }
+      & (import("@/lib/platforms/pinduoduo-client").PinduoduoSkuCapabilitySummary
+        | { success: false; skuPermissionStatus: "denied" | "unknown"; errorCode: string | number | null; subCode: string | number | null; subMessage: string | null }));
 
 function defaultDiagnostic(event: PinduoduoDiagnosticEvent): void {
   console.info("[pdd-live]", JSON.stringify(event));
@@ -44,6 +47,19 @@ function safeProviderFailure(error: unknown) {
     subCode: safeCode(record.providerSubCode),
     subMessage: safeText(record.providerSubMessage),
     requestId: safeText(record.providerRequestId),
+  };
+}
+
+function safeSkuFailure(error: unknown) {
+  const failure = safeProviderFailure(error);
+  const message = failure.subMessage?.replace(/\b(?:goods_sign|search_id|goods_id|pid|sign|token|secret)\s*[=:]\s*[^\s，,；;]+/gi, (entry) => `${entry.split(/[=:]/, 1)[0]}=[REDACTED]`)
+    .replace(/\b\d{12,}\b/g, "[REDACTED]") ?? null;
+  const denied = failure.errorCode === 20031 || failure.errorCode === 30000
+    || /permission|权限|无权/i.test(`${failure.subCode ?? ""} ${message ?? ""}`);
+  return {
+    success: false as const,
+    skuPermissionStatus: denied ? "denied" as const : "unknown" as const,
+    errorCode: failure.errorCode, subCode: failure.subCode, subMessage: message,
   };
 }
 
@@ -70,7 +86,7 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
       let goods = cache.get(key)?.goods;
       let source: "search" | "recommend" = "search";
       if (!goods) {
-        const pool = await withDeadline(async (signal) => {
+        const poolResult = await withDeadline(async (signal) => {
           if (
             experimentEnabled
             && typeof client.getGoodsOptChildren === "function"
@@ -95,12 +111,12 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
               throw error;
             }
             if (!search.goods.length) {
-              if (page > 1 || searchedGoods.length) return searchedGoods;
+              if (page > 1 || searchedGoods.length) return { goods: searchedGoods, searchId: search.searchId };
               source = "recommend";
               try {
                 const recommend = await client.getRecommendedGoods({ limit: MAX_RECOMMENDED_GOODS_PER_REQUEST }, { signal });
                 diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: true, providerTotal: recommend.total, rawCount: recommend.rawCount, parsedCount: recommend.goods.length, ...recommend.parseDiagnostics });
-                return recommend.goods;
+                return { goods: recommend.goods, searchId: recommend.searchId };
               } catch (error) {
                 diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: false, ...safeProviderFailure(error) });
                 throw error;
@@ -109,10 +125,37 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
             searchedGoods.push(...search.goods);
             // Keep the strict subject/accessory gate. Pagination only gives the
             // provider more chances to return a qualifying whole product.
-            if (selectLivePinduoduoOffersWithDiagnostics(products, key, searchedGoods).offers.size > 0) return searchedGoods;
+            if (selectLivePinduoduoOffersWithDiagnostics(products, key, searchedGoods).offers.size > 0) return { goods: searchedGoods, searchId: search.searchId };
           }
-          return searchedGoods;
+          return { goods: searchedGoods, searchId: undefined };
         }, experimentEnabled ? Math.max(timeoutMs, RECALL_EXPERIMENT_DEADLINE_MS) : timeoutMs);
+        const pool = poolResult.goods;
+        if (
+          process.env.PDD_SKU_DIAGNOSTIC_ENABLED === "1"
+          && key === "pura 70"
+          && typeof client.getGoodsDetailCapabilities === "function"
+        ) {
+          const product = products.find((item) => item.slug === "huawei-pura-70");
+          const selectedForProduct = product
+            ? selectLivePinduoduoOffersWithDiagnostics([product], key, pool).offers.get(product.id) ?? []
+            : [];
+          const candidates = selectedForProduct.flatMap((offer) => {
+            const item = pool.find((entry) => entry.goodsId === offer.goodsId);
+            return item?.goodsSign ? [item] : [];
+          }).slice(0, 2);
+          await Promise.all(candidates.map(async (candidate, index) => {
+            try {
+              const searchId = candidate.searchId ?? poolResult.searchId;
+              const summary = await withDeadline((signal) => client.getGoodsDetailCapabilities!({
+                goodsSign: candidate.goodsSign!,
+                ...(searchId ? { searchId } : {}),
+              }, { signal }), timeoutMs);
+              diagnostic({ event: "sku_detail_diagnostic", productKey: "pura-70", candidateIndex: index + 1, ...summary });
+            } catch (error) {
+              diagnostic({ event: "sku_detail_diagnostic", productKey: "pura-70", candidateIndex: index + 1, ...safeSkuFailure(error) });
+            }
+          }));
+        }
         // Whitelist parsed public fields. Never retain request signing material,
         // goods_sign, response envelopes, arbitrary extra properties or errors.
         goods = pool.slice(0, MAX_GOODS_PER_QUERY).map(publicGoods);

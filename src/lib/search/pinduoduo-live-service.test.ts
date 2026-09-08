@@ -7,6 +7,7 @@ import type { PinduoduoGoods } from "@/lib/platforms/pinduoduo-client";
 import { createLivePinduoduoService, type PinduoduoGoodsCache } from "./pinduoduo-live-service";
 
 const product = phones.find((item) => item.slug === "apple-iphone-16")!;
+const pura70 = phones.find((item) => item.slug === "huawei-pura-70")!;
 const goods: PinduoduoGoods = {
   goodsId: "123", goodsSign: "private-product-sign", goodsName: "Apple iPhone16 256GB 黑色 手机",
   goodsThumbnailUrl: null, goodsImageUrl: "https://example.com/phone.jpg", categoryName: "手机",
@@ -21,6 +22,59 @@ const clientFixture = () => ({ searchGoods: vi.fn().mockResolvedValue(response()
 afterEach(() => vi.unstubAllEnvs());
 
 describe("live Pinduoduo service", () => {
+  it("diagnoses at most two product-level Pura 70 candidates without exposing private identifiers", async () => {
+    vi.stubEnv("PDD_SKU_DIAGNOSTIC_ENABLED", "1");
+    const candidates = [1, 2, 3].map((index) => ({
+      ...goods, goodsId: String(index), goodsSign: `private-sign-${index}`,
+      goodsName: "华为 Pura 70 全新手机", minNormalPrice: 4699 + index,
+    }));
+    const client = {
+      ...clientFixture(),
+      searchGoods: vi.fn().mockResolvedValue({ ...response(candidates), searchId: "private-search-id" }),
+      getGoodsDetailCapabilities: vi.fn().mockResolvedValue({
+        success: true, skuPermissionStatus: "available", skuCount: 4,
+        skuWithAttributeNameCount: 4, skuWithAttributeValueCount: 4, skuWithPriceCount: 4,
+        hasCapacity: true, hasColor: true, hasRegionOrVersion: false, hasCondition: false,
+      }),
+    };
+    const events: unknown[] = [];
+
+    await createLivePinduoduoService({ client, diagnostic: (event) => events.push(event) })([pura70], "Pura 70");
+
+    expect(client.getGoodsDetailCapabilities).toHaveBeenCalledTimes(2);
+    expect(client.getGoodsDetailCapabilities).toHaveBeenNthCalledWith(1, {
+      goodsSign: "private-sign-1", searchId: "private-search-id",
+    }, { signal: expect.any(AbortSignal) });
+    expect(events).toContainEqual(expect.objectContaining({
+      event: "sku_detail_diagnostic", productKey: "pura-70", candidateIndex: 1,
+      success: true, skuPermissionStatus: "available", skuCount: 4,
+      hasCapacity: true, hasColor: true, hasRegionOrVersion: false, hasCondition: false,
+    }));
+    expect(JSON.stringify(events)).not.toMatch(/private|goodsSign|searchId|goodsId|华为|4699/);
+  });
+
+  it("keeps search results unchanged when the optional SKU diagnostic fails", async () => {
+    vi.stubEnv("PDD_SKU_DIAGNOSTIC_ENABLED", "1");
+    const candidate = { ...goods, goodsName: "华为 Pura 70 256GB 黑色 国行 全新手机", goodsSign: "private-sign" };
+    const client = {
+      ...clientFixture(),
+      searchGoods: vi.fn().mockResolvedValue({ ...response([candidate]), searchId: "private-search-id" }),
+      getGoodsDetailCapabilities: vi.fn().mockRejectedValue(Object.assign(new Error("private"), {
+        providerCode: 50001, providerSubCode: "permission.denied",
+        providerSubMessage: "sku权限不足 goods_sign=private-sign", providerRequestId: "private-request",
+      })),
+    };
+    const events: unknown[] = [];
+
+    const result = await createLivePinduoduoService({ client, diagnostic: (event) => events.push(event) })([pura70], "Pura 70");
+
+    expect(result.get(pura70.id)).toHaveLength(1);
+    expect(events).toContainEqual(expect.objectContaining({
+      event: "sku_detail_diagnostic", candidateIndex: 1, success: false,
+      errorCode: 50001, subCode: "permission.denied",
+    }));
+    expect(JSON.stringify(events)).not.toMatch(/private-sign|private-search|private-request/);
+  });
   it.each(["", "  \t\n "])("does not request goods for a blank query", async (query) => {
     const client = clientFixture();
     expect(await createLivePinduoduoService({ client })([product], query)).toEqual(new Map());
