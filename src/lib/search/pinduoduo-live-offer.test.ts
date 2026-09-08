@@ -118,8 +118,32 @@ describe("live Pinduoduo offers", () => {
       invalidPriceCount: 1,
       invalidIdentityCount: 0, eligibleCount: 2, deduplicatedCount: 1,
       selectedCount: 1, matchedProductCount: 1, matchedVariantCount: 1,
+      variantStorageMismatchCount: 0, variantColorMismatchCount: 0,
+      variantRegionMismatchCount: 0, variantConditionMismatchCount: 0,
+      variantInsufficientEvidenceCount: 0, variantAmbiguousMatchCount: 0,
     });
     expect(JSON.stringify(result.diagnostics)).not.toMatch(/iphone|品牌商城|goodsId|title/i);
+  });
+
+  it("reports only aggregate variant rejection categories", () => {
+    const result = selectLivePinduoduoOffersWithDiagnostics([product], "iphone16", [
+      goods({ goodsId: "storage", goodsName: "Apple iPhone16 128GB 黑色 国行 全新手机" }),
+      goods({ goodsId: "color", goodsName: "Apple iPhone16 256GB 蓝色 国行 全新手机" }),
+      goods({ goodsId: "region", goodsName: "Apple iPhone16 256GB 黑色 港版 全新手机" }),
+      goods({ goodsId: "condition", goodsName: "Apple iPhone16 256GB 黑色 国行 二手手机" }),
+      goods({ goodsId: "evidence", goodsName: "Apple iPhone16 国行 全新手机" }),
+    ]);
+
+    expect(result.diagnostics).toMatchObject({
+      variantStorageMismatchCount: 1,
+      variantColorMismatchCount: 1,
+      variantRegionMismatchCount: 1,
+      variantConditionMismatchCount: 1,
+      variantInsufficientEvidenceCount: 1,
+      variantAmbiguousMatchCount: 0,
+      matchedVariantCount: 0,
+    });
+    expect(JSON.stringify(result.diagnostics)).not.toMatch(/iphone|128GB|蓝色|港版|goodsId|title/i);
   });
   it("sorts by relevance, then price, sales, goodsId and deduplicates before Top 5", () => {
     const input = [

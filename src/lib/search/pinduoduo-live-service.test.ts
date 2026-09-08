@@ -66,7 +66,7 @@ describe("live Pinduoduo service", () => {
     client.searchGoods.mockResolvedValue(response([]));
     const result = await createLivePinduoduoService({ client })([product], "iphone16");
     expect(result.get(product.id)?.[0].goodsId).toBe("123");
-    expect(client.getRecommendedGoods).toHaveBeenCalledWith({ limit: 400 }, { signal: expect.any(AbortSignal) });
+    expect(client.getRecommendedGoods).toHaveBeenCalledWith({ limit: 50 }, { signal: expect.any(AbortSignal) });
     expect(client.searchGoods.mock.invocationCallOrder[0]).toBeLessThan(client.getRecommendedGoods.mock.invocationCallOrder[0]);
   });
 
@@ -78,7 +78,7 @@ describe("live Pinduoduo service", () => {
     expect(events).toEqual([
       { event: "api_response", method: "pdd.ddk.goods.search", success: true, providerTotal: 0, rawCount: 0, parsedCount: 0, ...emptyParseDiagnostics },
       { event: "api_response", method: "pdd.ddk.goods.recommend.get", success: true, providerTotal: 1, rawCount: 1, parsedCount: 1, ...emptyParseDiagnostics },
-      { event: "selection", source: "recommend", inputCount: 1, candidatePairCount: 1, uniqueAccessoryGoodsCount: 0, accessoryPairCount: 0, unrelatedPairCount: 0, accessoryKeywordPairCount: 0, nonRetailModelPairCount: 0, replacementPartPairCount: 0, modelMismatchPairCount: 0, suffixMismatchPairCount: 0, queryMismatchPairCount: 0, missingPhoneEvidencePairCount: 0, emptyQueryPairCount: 0, invalidPriceCount: 0, invalidIdentityCount: 0, eligibleCount: 1, deduplicatedCount: 1, selectedCount: 1, matchedProductCount: 1, matchedVariantCount: 1 },
+      { event: "selection", source: "recommend", inputCount: 1, candidatePairCount: 1, uniqueAccessoryGoodsCount: 0, accessoryPairCount: 0, unrelatedPairCount: 0, accessoryKeywordPairCount: 0, nonRetailModelPairCount: 0, replacementPartPairCount: 0, modelMismatchPairCount: 0, suffixMismatchPairCount: 0, queryMismatchPairCount: 0, missingPhoneEvidencePairCount: 0, emptyQueryPairCount: 0, invalidPriceCount: 0, invalidIdentityCount: 0, eligibleCount: 1, deduplicatedCount: 1, selectedCount: 1, matchedProductCount: 1, matchedVariantCount: 1, variantStorageMismatchCount: 0, variantColorMismatchCount: 0, variantRegionMismatchCount: 0, variantConditionMismatchCount: 0, variantInsufficientEvidenceCount: 0, variantAmbiguousMatchCount: 0 },
     ]);
     expect(JSON.stringify(events)).not.toMatch(/iphone|123|品牌商城|private/i);
   });

@@ -381,4 +381,23 @@ describe("PinduoduoClient", () => {
       offset: "0",
     });
   });
+
+  it("caps recommendation requests at the official 50-item limit", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({
+      goods_basic_detail_response: { list: [] },
+    }));
+    const client = new PinduoduoClient({
+      clientId: "test_client",
+      clientSecret: "test_secret",
+      pid: "test_pid",
+      fetcher,
+    });
+
+    await client.getRecommendedGoods({ limit: 400, offset: 50 });
+
+    expect(Object.fromEntries(new URLSearchParams(String(fetcher.mock.calls[0][1]?.body)))).toMatchObject({
+      limit: "50",
+      offset: "50",
+    });
+  });
 });

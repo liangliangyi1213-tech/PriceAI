@@ -7,6 +7,7 @@ import { runPinduoduoRecallExperiment, type RecallExperimentResult } from "./pin
 
 const CACHE_TTL_MS = 600_000;
 const MAX_GOODS_PER_QUERY = 400;
+const MAX_RECOMMENDED_GOODS_PER_REQUEST = 50;
 const MAX_SEARCH_PAGES = 5;
 const DEFAULT_REQUEST_DEADLINE_MS = 8_000;
 const RECALL_EXPERIMENT_DEADLINE_MS = 20_000;
@@ -97,7 +98,7 @@ export function createLivePinduoduoService(options: ServiceOptions = {}) {
               if (page > 1 || searchedGoods.length) return searchedGoods;
               source = "recommend";
               try {
-                const recommend = await client.getRecommendedGoods({ limit: MAX_GOODS_PER_QUERY }, { signal });
+                const recommend = await client.getRecommendedGoods({ limit: MAX_RECOMMENDED_GOODS_PER_REQUEST }, { signal });
                 diagnostic({ event: "api_response", method: "pdd.ddk.goods.recommend.get", success: true, providerTotal: recommend.total, rawCount: recommend.rawCount, parsedCount: recommend.goods.length, ...recommend.parseDiagnostics });
                 return recommend.goods;
               } catch (error) {

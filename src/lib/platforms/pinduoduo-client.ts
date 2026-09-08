@@ -290,7 +290,10 @@ export class PinduoduoClient {
       data_type: "JSON",
       version: "V1",
       pid: this.options.pid,
-      limit: boundedInteger(limit, 20, 1, 400),
+      // The official recommendation endpoint accepts at most 50 goods per
+      // request. Callers that need more must page with offset, never enlarge
+      // this request parameter.
+      limit: boundedInteger(limit, 20, 1, 50),
       offset: nonNegativeInteger(offset),
     };
     return parsePinduoduoRecommendResponse(await this.request(parameters, requestOptions), fetchedAt);
