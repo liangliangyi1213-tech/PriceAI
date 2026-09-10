@@ -1,7 +1,7 @@
 import "server-only";
 
 import { phones } from "@/data/phones";
-import { toSafePlatformError } from "@/lib/platforms/errors";
+import { PlatformDataNotWritableError, toSafePlatformError } from "@/lib/platforms/errors";
 import { getPlatformAdapter } from "@/lib/platforms/registry";
 import type { PlatformAdapter, PlatformAdapterId } from "@/lib/platforms/types";
 import type { Product } from "@/types/catalog";
@@ -55,6 +55,11 @@ export function createCatalogSyncRunner({
       try { adapter = getAdapter(input.platform); }
       catch (error) {
         const safe = toSafePlatformError(input.platform, error);
+        try { await runRepository.failCatalogSyncRun(run.id, { code: safe.name, summary: safe.message, ...finish() }); } catch { throw new CatalogSyncObservabilityError(); }
+        throw safe;
+      }
+      if (adapter.catalogSyncCapability === "product_only") {
+        const safe = new PlatformDataNotWritableError(input.platform);
         try { await runRepository.failCatalogSyncRun(run.id, { code: safe.name, summary: safe.message, ...finish() }); } catch { throw new CatalogSyncObservabilityError(); }
         throw safe;
       }

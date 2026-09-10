@@ -59,6 +59,13 @@ export class PlatformRequestError extends PlatformAdapterError {
   }
 }
 
+/** An adapter can be live for discovery while still lacking the SKU data required for Offer persistence. */
+export class PlatformDataNotWritableError extends PlatformAdapterError {
+  constructor(platform: PlatformAdapterId) {
+    super("PlatformDataNotWritableError", platform, `${platformLabels[platform]}平台当前仅支持商品级检索，不能写入 SKU 报价。`);
+  }
+}
+
 function getStatus(error: unknown): number | null {
   if (!error || typeof error !== "object") return null;
 

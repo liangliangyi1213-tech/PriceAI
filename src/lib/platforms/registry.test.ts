@@ -24,4 +24,10 @@ describe("platform adapter registry", () => {
     expect(adapter.id).toBe("pdd");
     expect(adapter.getRecommendedProducts).toBeTypeOf("function");
   });
+
+  it("registers Taobao as a product-only adapter rather than a SKU Offer source", () => {
+    const adapter = getPlatformAdapter("taobao");
+
+    expect(adapter).toMatchObject({ id: "taobao", catalogSyncCapability: "product_only" });
+  });
 });

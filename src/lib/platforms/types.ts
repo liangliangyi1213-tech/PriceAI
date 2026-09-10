@@ -5,6 +5,7 @@ export type PlatformAdapterId = "mock" | "jd" | "taobao" | "pdd";
 export type MarketplaceId = Exclude<PlatformAdapterId, "mock">;
 
 export type PlatformSearchSort = "relevance" | "price_asc" | "price_desc";
+export type CatalogSyncCapability = "full_offer" | "product_only";
 
 export type PlatformSearchOptions = {
   limit?: number;
@@ -43,6 +44,8 @@ export type PlatformProductDetail = PlatformSearchResult & {
 
 export interface PlatformAdapter {
   readonly id: PlatformAdapterId;
+  /** Product-only integrations must never enter the SKU Offer writer. */
+  readonly catalogSyncCapability?: CatalogSyncCapability;
   searchProducts(query: string, options?: PlatformSearchOptions): Promise<PlatformSearchResult[]>;
   getRecommendedProducts?(options?: PlatformSearchOptions): Promise<PlatformSearchResult[]>;
   getProductDetail?(externalProductId: string): Promise<PlatformProductDetail | null>;

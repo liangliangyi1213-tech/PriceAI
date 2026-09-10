@@ -2,10 +2,12 @@ import "server-only";
 
 import { phones } from "@/data/phones";
 
-import { JdPlatformAdapter, TaobaoPlatformAdapter } from "./unsupported-platform-adapter";
+import { JdPlatformAdapter } from "./unsupported-platform-adapter";
 import { MockPlatformAdapter } from "./mock-platform-adapter";
 import { PinduoduoAdapter } from "./pinduoduo-adapter";
 import { createPinduoduoClientFromEnv } from "./pinduoduo-client";
+import { TaobaoAdapter } from "./taobao-adapter";
+import { createTaobaoClientFromEnv } from "./taobao-client";
 import type { PlatformAdapter, PlatformAdapterId, PlatformSearchOptions, PlatformSearchResult } from "./types";
 
 const mockAdapter = new MockPlatformAdapter(phones);
@@ -25,7 +27,7 @@ async function getPinduoduoFixtureRecommendations(options: PlatformSearchOptions
 const platformAdapters: Record<PlatformAdapterId, PlatformAdapter> = {
   mock: mockAdapter,
   jd: new JdPlatformAdapter(),
-  taobao: new TaobaoPlatformAdapter(),
+  taobao: new TaobaoAdapter({ client: createTaobaoClientFromEnv() }),
   pdd: new PinduoduoAdapter({
     client: createPinduoduoClientFromEnv(),
     fallback: { getRecommendedProducts: getPinduoduoFixtureRecommendations },

@@ -91,6 +91,20 @@ describe("CatalogSyncRunner", () => {
     expect(syncWriter.upsertOffer).not.toHaveBeenCalled();
   });
 
+  it("does not send product-only Taobao material results into the SKU Offer writer", async () => {
+    const syncWriter = writer();
+    const productOnlyAdapter = {
+      id: "taobao" as const,
+      catalogSyncCapability: "product_only" as const,
+      searchProducts: vi.fn(),
+    };
+
+    await expect(createCatalogSyncRunner({ products: phones, writer: syncWriter, runRepository: runRepository(), getAdapter: () => productOnlyAdapter })
+      .runCatalogSync({ platform: "taobao", query: "iPhone 16 Pro", dryRun: false })).rejects.toMatchObject({ name: "PlatformDataNotWritableError" });
+    expect(productOnlyAdapter.searchProducts).not.toHaveBeenCalled();
+    expect(syncWriter.upsertOffer).not.toHaveBeenCalled();
+  });
+
   it("returns safe writer failures while retaining the rest of the batch", async () => {
     const syncWriter: CatalogSyncWriter = { upsertOffer: vi.fn().mockRejectedValueOnce(new Error("Authorization: private-token")).mockResolvedValue(undefined), recordPriceSnapshotIfNeeded: vi.fn().mockResolvedValue({ recorded: true }) };
     const result = await createCatalogSyncRunner({ products: phones, writer: syncWriter, runRepository: runRepository(), getAdapter: () => validAdapter })
