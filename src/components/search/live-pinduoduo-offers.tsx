@@ -13,6 +13,7 @@ export function LivePinduoduoOffers({ offers }: { offers: readonly LivePinduoduo
       primaryPrice: offer.price,
       metadata: facts.salesLabel,
       tags: facts.couponLabels,
+      platformLabel: "拼多多",
     };
   });
   return <LivePlatformOffers ariaLabel="实时拼多多报价" listings={listings} notice="实时拼多多报价暂未计入 PriceAI 评分" title="实时拼多多报价" />;

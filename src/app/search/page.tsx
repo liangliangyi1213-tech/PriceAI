@@ -4,6 +4,7 @@ import { CompareBar, CompareToggleButton } from "@/components/compare/compare-se
 import { SearchFilters } from "@/components/search/search-filters";
 import { ResultsSearch } from "@/components/search/results-search";
 import { ResultsToolbar } from "@/components/search/results-toolbar";
+import { LiveSearchOffers } from "@/components/search/live-search-offers";
 import { SearchProductCard } from "@/components/search/search-product-card";
 import { categoryLabel, searchHref } from "@/components/search/presentation";
 import { SiteFooter } from "@/components/layout/site-footer";
@@ -54,8 +55,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
           <section aria-label="搜索结果" className="min-w-0">
             <ResultsToolbar compareSlugs={compareSlugs} count={rows.length} query={searchQuery} />
             {rows.length ? (
-              <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:gap-5">
-                {rows.map((row) => <SearchProductCard key={row.product.id} row={row}><CompareToggleButton productOptions={productOptions} productSlug={row.product.slug} /></SearchProductCard>)}
+              <div className="grid items-stretch gap-5">
+                {rows.map((row) => (
+                  <div className="grid min-w-0 gap-3" key={row.product.id}>
+                    <SearchProductCard row={row}><CompareToggleButton productOptions={productOptions} productSlug={row.product.slug} /></SearchProductCard>
+                    <LiveSearchOffers pinduoduoOffers={row.livePinduoduoOffers} taobaoOffers={row.liveTaobaoOffers} />
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center">

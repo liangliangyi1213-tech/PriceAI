@@ -88,6 +88,8 @@ describe("search page live Pinduoduo integration", () => {
     expect(html).toContain("页面实时商品");
     expect(html).toContain("¥6,999");
     expect(html).toContain("页面淘宝实时商品");
+    expect(html).toContain("实时平台报价");
+    expect(html.indexOf("</article>")).toBeLessThan(html.indexOf("实时平台报价"));
   });
 
   it("keeps catalog and PDD results visible when the Taobao service fails", async () => {
