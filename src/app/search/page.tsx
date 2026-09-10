@@ -11,6 +11,7 @@ import { SiteHeader } from "@/components/layout/site-header";
 import { getProducts } from "@/lib/catalog/repository";
 import { parseCompareQuery } from "@/lib/compare/query";
 import { getLivePinduoduoOffers } from "@/lib/search/pinduoduo-live-service";
+import { getLiveTaobaoOffers } from "@/lib/search/taobao-live-service";
 import { parseProductSearchQuery, type SearchParamRecord } from "@/lib/search/query";
 import { searchCatalog } from "@/lib/search/products";
 
@@ -18,10 +19,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
   const currentSearchParams = await searchParams;
   const searchQuery = parseProductSearchQuery(currentSearchParams);
   const products = await getProducts();
-  const liveOffersByProduct = searchQuery.query
-    ? await getLivePinduoduoOffers(products, searchQuery.query)
-    : undefined;
-  const rows = searchCatalog(products, searchQuery, liveOffersByProduct);
+  const catalogRows = searchCatalog(products, searchQuery);
+  const liveSources = searchQuery.query
+    ? await Promise.allSettled([
+        getLivePinduoduoOffers(products, searchQuery.query),
+        getLiveTaobaoOffers(catalogRows.map((row) => row.product)),
+      ])
+    : [];
+  const liveOffersByProduct = liveSources[0]?.status === "fulfilled" ? liveSources[0].value : undefined;
+  const liveTaobaoOffersByProduct = liveSources[1]?.status === "fulfilled" ? liveSources[1].value : undefined;
+  const rows = searchCatalog(products, searchQuery, liveOffersByProduct, liveTaobaoOffersByProduct);
   const brands = [...new Set(products.map((product) => product.brand))];
   const categories = [...new Set(products.map((product) => product.category))];
   const productOptions = products.map((product) => ({ slug: product.slug, name: product.name }));

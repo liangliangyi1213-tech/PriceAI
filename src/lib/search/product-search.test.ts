@@ -4,6 +4,7 @@ import { phones } from "@/data/phones";
 import type { Product } from "@/types/catalog";
 
 import type { LivePinduoduoOffer } from "./pinduoduo-live-offer";
+import type { LiveTaobaoProductOffer } from "./taobao-live-offer";
 import { parseProductSearchQuery } from "./query";
 import { searchCatalog } from "./products";
 
@@ -74,6 +75,36 @@ describe("ProductSearchQuery parsing", () => {
 });
 
 describe("searchCatalog", () => {
+  it("keeps product-level Taobao listings out of price, sorting, filtering, and score metrics", () => {
+    const product = structuredClone(phones.find((item) => item.slug === "xiaomi-15")!);
+    const baseline = searchCatalog([product], { sort: "relevance" })[0];
+    const taobao: LiveTaobaoProductOffer = {
+      productId: product.id,
+      variantId: null,
+      itemId: "tb-cheap",
+      title: "小米15 淘宝商品",
+      image: null,
+      merchant: "淘宝店铺",
+      salePrice: 1,
+      promotionPrice: 0.5,
+      promotionTags: ["条件优惠"],
+      productUrl: "https://s.click.taobao.com/example",
+      source: "live",
+    };
+
+    const withTaobao = searchCatalog(
+      [product],
+      { minPrice: baseline.displayLowestPrice!, sort: "price_asc" },
+      undefined,
+      new Map([[product.id, [taobao]]]),
+    )[0];
+
+    expect(withTaobao.liveTaobaoOffers).toEqual([taobao]);
+    expect(withTaobao.displayLowestPrice).toBe(baseline.displayLowestPrice);
+    expect(withTaobao.lowestOffer).toEqual(baseline.lowestOffer);
+    expect(withTaobao.valueScore).toBe(baseline.valueScore);
+  });
+
   it("uses a lower live Pinduoduo price for display, price filtering, and price sorting only", () => {
     const liveProduct = structuredClone(phones[0]);
     const comparisonProduct = structuredClone(phones[1]);

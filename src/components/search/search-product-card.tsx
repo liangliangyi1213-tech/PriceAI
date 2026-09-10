@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { PriceAIScore } from "@/components/home/priceai-score";
 import { LivePinduoduoOffers } from "@/components/search/live-pinduoduo-offers";
+import { LiveTaobaoOffers } from "@/components/search/live-taobao-offers";
 import { formatPrice } from "@/lib/pricing/offers";
 import type { ProductSearchRow } from "@/lib/search/products";
 import type { Offer } from "@/types/catalog";
@@ -14,7 +15,7 @@ function OfferRow({ offer, lowestId }: { offer: Offer; lowestId?: string }) {
 }
 
 export function SearchProductCard({ row, children }: { row: ProductSearchRow; children?: ReactNode }) {
-  const { product, lowestOffer, displayLowestPrice, livePinduoduoOffers } = row;
+  const { product, lowestOffer, displayLowestPrice, livePinduoduoOffers, liveTaobaoOffers } = row;
   const { variant, offers } = productCardDetails(row);
   const href = `/products/${product.slug}`;
   const specification = specificationSummary(product.category, variant);
@@ -61,6 +62,7 @@ export function SearchProductCard({ row, children }: { row: ProductSearchRow; ch
           </div>
         ) : null}
         <LivePinduoduoOffers offers={livePinduoduoOffers} />
+        <LiveTaobaoOffers offers={liveTaobaoOffers} />
         <div className="mt-auto pt-3">
           {differentDetailVariant ? <p className="mb-2 rounded-lg bg-amber-50 p-2 text-xs leading-5 text-amber-800">详情与历史记录默认展示：{defaultSpecification}，与本卡报价规格不同</p> : null}
           <Link className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-slate-600 hover:text-blue-700" href={`${href}#price-history-heading`} prefetch={false}>{differentDetailVariant ? "查看默认规格历史价格" : "查看历史价格"} <span aria-hidden="true">↗</span></Link>

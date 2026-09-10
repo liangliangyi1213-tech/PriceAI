@@ -3,6 +3,7 @@ import { Fragment } from "react";
 import { describe, expect, it } from "vitest";
 import { phones } from "@/data/phones";
 import type { LivePinduoduoOffer } from "@/lib/search/pinduoduo-live-offer";
+import type { LiveTaobaoProductOffer } from "@/lib/search/taobao-live-offer";
 import { searchCatalog } from "@/lib/search/products";
 import { SearchFilters } from "./search-filters";
 
@@ -54,6 +55,39 @@ describe("search filter navigation", () => {
 });
 
 describe("product card presentation", () => {
+  it("shows Taobao regular price and clearly labels a conditional promotion price", async () => {
+    const { SearchProductCard } = await import("./search-product-card");
+    const target = phones.find((item) => item.slug === "xiaomi-15")!;
+    const taobao: LiveTaobaoProductOffer = {
+      productId: target.id,
+      variantId: null,
+      itemId: "tb-xiaomi-15",
+      title: "Xiaomi 小米15 5G 全新手机",
+      image: "https://img.example.test/xiaomi.jpg",
+      merchant: "小米授权店",
+      salePrice: 4299,
+      promotionPrice: 3999,
+      promotionTags: ["官方立减", "地区补贴"],
+      productUrl: "https://s.click.taobao.com/example",
+      source: "live",
+    };
+    const row = searchCatalog([target], { sort: "relevance" }, undefined, new Map([[target.id, [taobao]]] ))[0];
+
+    const html = renderToStaticMarkup(<SearchProductCard row={row} />);
+
+    expect(html).toContain("实时淘宝报价");
+    expect(html).toContain("常规成交价 ¥4,299");
+    expect(html).toContain("优惠后 ¥3,999");
+    expect(html).toContain("需满足活动/地区/领券等条件");
+    expect(html).toContain("官方立减");
+    expect(html).toContain("地区补贴");
+    expect(html).toContain("去淘宝看看");
+    expect(html).toContain("https://s.click.taobao.com/example");
+    expect(html).toContain("小米授权店");
+    expect(html).toContain("https://img.example.test/xiaomi.jpg");
+    expect(html).toContain("当前已收录最低价");
+  });
+
   it("shows restrained live Pinduoduo facts and the lower comparable display price", async () => {
     const { SearchProductCard } = await import("./search-product-card");
     const offer = liveOffer();

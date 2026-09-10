@@ -4,6 +4,7 @@ import type { Offer, Product, ProductVariant } from "@/types/catalog";
 
 import type { ProductSearchQuery, ProductSearchSort } from "./query";
 import type { LivePinduoduoOffer } from "./pinduoduo-live-offer";
+import type { LiveTaobaoProductOffer } from "./taobao-live-offer";
 
 export type ProductSearchRow = {
   product: Product;
@@ -13,6 +14,7 @@ export type ProductSearchRow = {
   sales: number | null;
   platformCount: number;
   livePinduoduoOffers: readonly LivePinduoduoOffer[];
+  liveTaobaoOffers: readonly LiveTaobaoProductOffer[];
   displayLowestPrice: number | null;
   relevance: number;
   catalogIndex: number;
@@ -54,6 +56,7 @@ function getProductMetrics(
   catalogIndex: number,
   relevance: number,
   livePinduoduoOffers: readonly LivePinduoduoOffer[],
+  liveTaobaoOffers: readonly LiveTaobaoProductOffer[],
 ): ProductSearchRow {
   const variantOffers = product.variants
     .map((variant) => ({ variant, offer: getLowestOffer(variant.offers) }))
@@ -87,6 +90,7 @@ function getProductMetrics(
     sales,
     platformCount,
     livePinduoduoOffers,
+    liveTaobaoOffers,
     displayLowestPrice,
     relevance,
     catalogIndex,
@@ -135,12 +139,19 @@ export function searchCatalog(
   products: Product[],
   searchQuery: ProductSearchQuery,
   liveOffersByProduct?: ReadonlyMap<string, readonly LivePinduoduoOffer[]>,
+  liveTaobaoOffersByProduct?: ReadonlyMap<string, readonly LiveTaobaoProductOffer[]>,
 ): ProductSearchRow[] {
   return products
     .map((product, catalogIndex) => ({ product, catalogIndex, relevance: getRelevance(product, searchQuery.query) }))
     .filter(({ relevance }) => !searchQuery.query || relevance >= 0)
     .filter(({ product }) => matchesBrands(product, searchQuery.brands))
-    .map(({ product, catalogIndex, relevance }) => getProductMetrics(product, catalogIndex, relevance, liveOffersByProduct?.get(product.id) ?? []))
+    .map(({ product, catalogIndex, relevance }) => getProductMetrics(
+      product,
+      catalogIndex,
+      relevance,
+      liveOffersByProduct?.get(product.id) ?? [],
+      liveTaobaoOffersByProduct?.get(product.id) ?? [],
+    ))
     .filter((row) => hasMetricInRange(row.displayLowestPrice, searchQuery.minPrice, searchQuery.maxPrice))
     .filter((row) => searchQuery.minScore === undefined || (row.valueScore !== null && row.valueScore >= searchQuery.minScore))
     .sort((left, right) => compareBySort(left, right, searchQuery.sort) || left.catalogIndex - right.catalogIndex);
