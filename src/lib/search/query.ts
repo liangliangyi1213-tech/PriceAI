@@ -11,6 +11,7 @@ export type ProductSearchSort = (typeof productSearchSorts)[number];
 
 export type ProductSearchQuery = {
   query?: string;
+  category?: SearchCategoryId;
   brands?: string[];
   minPrice?: number;
   maxPrice?: number;
@@ -61,6 +62,7 @@ export function parseProductSearchQuery(params: SearchParamRecord): ProductSearc
   const normalizedQuery = query === undefined ? undefined : normalizedWhitespace(query);
 
   if (normalizedQuery) result.query = normalizedQuery;
+  if (params.category !== undefined) result.category = getSearchCategory(firstValue(params.category)).id;
   const brands = parseBrands(params.brand);
   if (brands) result.brands = brands;
   if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) return result;
@@ -70,3 +72,4 @@ export function parseProductSearchQuery(params: SearchParamRecord): ProductSearc
 
   return result;
 }
+import { getSearchCategory, type SearchCategoryId } from "./category-context";

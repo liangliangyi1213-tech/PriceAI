@@ -9,6 +9,7 @@ export function searchHref(query: ProductSearchQuery, compare: string[] = [], ch
   const next = { ...query, ...changes };
   const params = new URLSearchParams();
   if (next.query) params.set("q", next.query);
+  if (next.category) params.set("category", next.category);
   next.brands?.forEach((brand) => params.append("brand", brand));
   if (next.minPrice !== undefined) params.set("minPrice", String(next.minPrice));
   if (next.maxPrice !== undefined) params.set("maxPrice", String(next.maxPrice));

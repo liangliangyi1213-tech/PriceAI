@@ -13,7 +13,7 @@ function listing(offer: LiveTaobaoProductOffer): LivePlatformListing {
     primaryPriceLabel: "常规成交价",
     ...(offer.promotionPrice !== null ? {
       secondaryPrice: offer.promotionPrice,
-      secondaryPriceLabel: "优惠后",
+      secondaryPriceLabel: "优惠后（条件优惠价）",
       conditionNote: "需满足活动/地区/领券等条件",
     } : {}),
     tags: offer.promotionTags,

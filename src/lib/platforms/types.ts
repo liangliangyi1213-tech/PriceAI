@@ -13,6 +13,8 @@ export type PlatformSearchOptions = {
   sort?: PlatformSearchSort;
   minPrice?: number;
   maxPrice?: number;
+  /** Provider category identifier selected by the server-side category registry. */
+  categoryId?: string;
 };
 
 /**

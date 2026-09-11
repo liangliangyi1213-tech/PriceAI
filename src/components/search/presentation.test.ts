@@ -70,8 +70,8 @@ describe("search presentation", () => {
       .toBe("暂无有效报价，暂不作购买判断。");
   });
   it("keeps query, filters and compare selections when sorting", () => {
-    expect(presentation.searchHref({ query: "茶 & 杯", brands: ["A", "B"], minPrice: 0, maxPrice: 500, minScore: 70, sort: "relevance" }, ["a", "b"], { sort: "price_asc" }))
-      .toBe("/search?q=%E8%8C%B6+%26+%E6%9D%AF&brand=A&brand=B&minPrice=0&maxPrice=500&minScore=70&sort=price_asc&compare=a&compare=b");
+    expect(presentation.searchHref({ query: "茶 & 杯", category: "clothing", brands: ["A", "B"], minPrice: 0, maxPrice: 500, minScore: 70, sort: "relevance" }, ["a", "b"], { sort: "price_asc" }))
+      .toBe("/search?q=%E8%8C%B6+%26+%E6%9D%AF&category=clothing&brand=A&brand=B&minPrice=0&maxPrice=500&minScore=70&sort=price_asc&compare=a&compare=b");
   });
   it("clears only filters while preserving keyword and comparison", () => {
     expect(presentation.searchHref({ query: "杯", sort: "relevance" }, ["a"]))

@@ -115,4 +115,38 @@ describe("search page live Pinduoduo integration", () => {
     expect(html).not.toContain("实时拼多多报价");
   });
 
+  it("keeps phone filters and live services for a recognized phone product", async () => {
+    const xiaomi15 = phones.find((product) => product.slug === "xiaomi-15")!;
+    mocks.getProducts.mockResolvedValue([xiaomi15]);
+
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ q: "小米15" }) }));
+
+    expect(html).toContain("手机");
+    expect(html).toContain("小米");
+    expect(mocks.getLivePinduoduoOffers).toHaveBeenCalledWith([xiaomi15], "小米15");
+    expect(mocks.getLiveTaobaoOffers).toHaveBeenCalledWith([xiaomi15]);
+  });
+
+  it("uses a generic category state for clothing without phone facets or phone live services", async () => {
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ q: "衣服" }) }));
+
+    expect(html).toContain("服饰");
+    expect(html).toContain("尚未建立完整的服饰商品目录和决策模型");
+    expect(html).not.toContain("Apple");
+    expect(html).not.toContain("手机</");
+    expect(html).not.toContain("最低性价比分数");
+    expect(mocks.getLivePinduoduoOffers).not.toHaveBeenCalled();
+    expect(mocks.getLiveTaobaoOffers).not.toHaveBeenCalled();
+  });
+
+  it("treats an unknown explicit category as all without phone capabilities", async () => {
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ q: "iPhone 16", category: "not-real" }) }));
+
+    expect(html).toContain("全部商品");
+    expect(html).not.toContain("Apple</label>");
+    expect(html).not.toContain("最低性价比分数");
+    expect(mocks.getLivePinduoduoOffers).not.toHaveBeenCalled();
+    expect(mocks.getLiveTaobaoOffers).not.toHaveBeenCalled();
+  });
+
 });

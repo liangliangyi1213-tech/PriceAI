@@ -8,7 +8,7 @@ export function ProductImage({ src, name, brand }: { src: string; name: string; 
   const usable = /^(\/[^/]|https:\/\/)/.test(src) && src !== "/phone-placeholder.svg" && failedSrc !== src;
 
   return (
-    <div className="relative flex h-40 items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_at_50%_25%,#ffffff_0%,#f4f3ef_60%,#eaeef4_100%)] sm:h-56">
+    <div className="relative flex h-40 items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_at_50%_25%,#ffffff_0%,#f4f3ef_60%,#eaeef4_100%)] sm:h-48 md:h-full md:min-h-72">
       {usable ? (
         <Image alt={name} className="object-contain p-5 transition-transform duration-300 motion-safe:group-hover:scale-105" fill onError={() => setFailedSrc(src)} sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 420px" src={src} unoptimized />
       ) : (

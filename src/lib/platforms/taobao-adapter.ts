@@ -46,6 +46,7 @@ export function mapTaobaoLiveOffer(offer: LiveTaobaoOffer): PlatformSearchResult
 }
 
 export type TaobaoPhoneOfferResult = { offer: LiveTaobaoOffer; match: TaobaoProductMatch };
+type TaobaoAdapterClient = Pick<TaobaoClient, "searchPhoneGoods"> & Partial<Pick<TaobaoClient, "searchGoods">>;
 
 /** Creates a phone search keyword solely from PriceAI's canonical Product. */
 export function createTaobaoPhoneSearchKeyword(product: Product): string {
@@ -56,16 +57,17 @@ export class TaobaoAdapter implements PlatformAdapter {
   readonly id = "taobao" as const;
   readonly catalogSyncCapability = "product_only" as const;
 
-  constructor(private readonly options: { client: Pick<TaobaoClient, "searchPhoneGoods"> | null }) {}
+  constructor(private readonly options: { client: TaobaoAdapterClient | null }) {}
 
-  private async searchLivePhoneOffers(query: string, options: PlatformSearchOptions = {}): Promise<TaobaoMaterialSearchResponse> {
+  private async searchLiveOffers(query: string, options: PlatformSearchOptions = {}): Promise<TaobaoMaterialSearchResponse> {
     if (!query.trim()) return { items: [], rawCount: 0 };
-    if (!this.options.client) throw new PlatformAuthError("taobao");
+    if (!this.options.client?.searchGoods) throw new PlatformAuthError("taobao");
     try {
-      return await this.options.client.searchPhoneGoods(query, {
+      return await this.options.client.searchGoods(query, {
         limit: boundedInteger(options.limit, 20),
         page: boundedInteger(options.page, 1),
         startPrice: options.minPrice,
+        ...(options.categoryId ? { categoryId: options.categoryId } : {}),
       });
     } catch (error) {
       throw toSafePlatformError("taobao", error);
@@ -73,7 +75,7 @@ export class TaobaoAdapter implements PlatformAdapter {
   }
 
   async searchProducts(query: string, options: PlatformSearchOptions = {}): Promise<PlatformSearchResult[]> {
-    const response = await this.searchLivePhoneOffers(query, options);
+    const response = await this.searchLiveOffers(query, options);
     const mapped = response.items
       .map(mapTaobaoLiveOffer)
       .filter((item) => options.minPrice === undefined || item.price >= options.minPrice)
@@ -83,7 +85,16 @@ export class TaobaoAdapter implements PlatformAdapter {
 
   /** Searches using the PriceAI Product name and returns only strict product-level match outcomes. */
   async searchPhoneOffersForProduct(product: Product, options: PlatformSearchOptions = {}): Promise<TaobaoPhoneOfferResult[]> {
-    const response = await this.searchLivePhoneOffers(createTaobaoPhoneSearchKeyword(product), options);
-    return response.items.map((offer) => ({ offer, match: matchTaobaoPhoneOffer(offer, product) }));
+    if (!this.options.client) throw new PlatformAuthError("taobao");
+    try {
+      const response = await this.options.client.searchPhoneGoods(createTaobaoPhoneSearchKeyword(product), {
+        limit: boundedInteger(options.limit, 20),
+        page: boundedInteger(options.page, 1),
+        startPrice: options.minPrice,
+      });
+      return response.items.map((offer) => ({ offer, match: matchTaobaoPhoneOffer(offer, product) }));
+    } catch (error) {
+      throw toSafePlatformError("taobao", error);
+    }
   }
 }

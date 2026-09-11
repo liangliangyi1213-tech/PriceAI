@@ -99,6 +99,26 @@ describe("TaobaoClient", () => {
       sign: expect.stringMatching(/^[A-F0-9]{32}$/),
     });
   });
+
+  it("omits the phone category for a generic non-phone material search", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({
+      tbk_dg_material_optional_upgrade_response: { result_list: { map_data: [] } },
+    }));
+    const client = new TaobaoClient({
+      appKey: "test-app-key",
+      appSecret: "test-app-secret",
+      adzoneId: "test-adzone",
+      fetcher,
+      now: () => new Date("2026-09-10T08:09:10.000Z"),
+    });
+
+    await client.searchGoods("秋季衣服", { limit: 20, page: 1 });
+
+    const [, init] = fetcher.mock.calls[0];
+    const body = new URLSearchParams(String(init?.body));
+    expect(body.get("q")).toBe("秋季衣服");
+    expect(body.has("cat")).toBe(false);
+  });
 });
 
 describe("parseTaobaoMaterialResponse", () => {

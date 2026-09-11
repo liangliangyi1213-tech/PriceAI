@@ -62,11 +62,14 @@ export type TaobaoMaterialSearchResponse = {
   rawCount: number;
 };
 
-type TaobaoPhoneSearchOptions = {
+export type TaobaoMaterialSearchOptions = {
   limit?: number;
   page?: number;
   startPrice?: number;
+  categoryId?: string;
 };
+
+type TaobaoPhoneSearchOptions = Omit<TaobaoMaterialSearchOptions, "categoryId">;
 
 function optionalString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -284,9 +287,10 @@ export class TaobaoClient {
     }
   }
 
-  async searchPhoneGoods(query: string, options: TaobaoPhoneSearchOptions = {}, requestOptions: TaobaoRequestOptions = {}): Promise<TaobaoMaterialSearchResponse> {
+  async searchGoods(query: string, options: TaobaoMaterialSearchOptions = {}, requestOptions: TaobaoRequestOptions = {}): Promise<TaobaoMaterialSearchResponse> {
     const keyword = query.trim();
     if (!keyword) return { items: [], rawCount: 0 };
+    const categoryId = identifier(options.categoryId);
     const parameters: RequestParameters = {
       method: MATERIAL_SEARCH_METHOD,
       app_key: this.options.appKey,
@@ -295,14 +299,18 @@ export class TaobaoClient {
       v: "2.0",
       sign_method: "md5",
       adzone_id: this.options.adzoneId,
-      cat: PHONE_CATEGORY_ID,
       q: keyword,
       page_no: boundedInteger(options.page, 1, 1, Number.MAX_SAFE_INTEGER),
       page_size: boundedInteger(options.limit, 20, 1, 100),
       ...(typeof options.startPrice === "number" && Number.isFinite(options.startPrice) && options.startPrice >= 0
         ? { start_price: options.startPrice } : {}),
+      ...(categoryId ? { cat: categoryId } : {}),
     };
     return parseTaobaoMaterialResponse(await this.request(parameters, requestOptions));
+  }
+
+  async searchPhoneGoods(query: string, options: TaobaoPhoneSearchOptions = {}, requestOptions: TaobaoRequestOptions = {}): Promise<TaobaoMaterialSearchResponse> {
+    return this.searchGoods(query, { ...options, categoryId: PHONE_CATEGORY_ID }, requestOptions);
   }
 }
 

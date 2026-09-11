@@ -48,6 +48,7 @@ describe("ProductSearchQuery parsing", () => {
       maxPrice: "10000",
       minScore: "70",
       sort: "price_asc",
+      category: "phones",
     })).toEqual({
       query: "iPhone 16",
       brands: ["Apple", "Xiaomi"],
@@ -55,6 +56,7 @@ describe("ProductSearchQuery parsing", () => {
       maxPrice: 10000,
       minScore: 70,
       sort: "price_asc",
+      category: "phones",
     });
   });
 
@@ -66,7 +68,8 @@ describe("ProductSearchQuery parsing", () => {
       maxPrice: "-1",
       minScore: "101",
       sort: "unexpected",
-    })).toEqual({ brands: ["Apple"], sort: "relevance" });
+      category: "not-a-real-category",
+    })).toEqual({ brands: ["Apple"], category: "all", sort: "relevance" });
   });
 
   it("drops an invalid price range instead of throwing", () => {

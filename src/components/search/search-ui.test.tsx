@@ -43,14 +43,15 @@ describe("search filter navigation", () => {
   });
   it("renders removable filters and sorting links that retain the current selection", async () => {
     const { ResultsToolbar } = await import("./results-toolbar");
-    const html = renderToStaticMarkup(<ResultsToolbar count={3} query={{ query: "杯", brands: ["A"], minPrice: 100, sort: "relevance" }} compareSlugs={["a"]} />);
+    const html = renderToStaticMarkup(<ResultsToolbar count={3} query={{ query: "杯", brands: ["A"], minPrice: 100, sort: "relevance" }} compareSlugs={["a"]} facets={{ brands: true, price: true, score: true, rating: true, sales: true }} />);
     expect(html).toContain("brand=A&amp;minPrice=100&amp;sort=price_asc&amp;compare=a");
     expect(html).toContain('aria-label="移除品牌 A"');
     expect(html).toContain('aria-current="true"');
   });
   it("clearing filters does not discard the search keyword or selected comparisons", () => {
-    const html = renderToStaticMarkup(<SearchFilters brands={["Apple"]} compareSlugs={["a"]} searchQuery={{ query: "杯", brands: ["Apple"], sort: "price_asc" }} />);
-    expect(html).toContain('href="/search?q=%E6%9D%AF&amp;sort=relevance&amp;compare=a"');
+    const html = renderToStaticMarkup(<SearchFilters brands={["Apple"]} compareSlugs={["a"]} facets={{ brands: true, price: true, score: true, rating: true, sales: true }} searchQuery={{ query: "杯", category: "phones", brands: ["Apple"], sort: "price_asc" }} />);
+    expect(html).toContain('name="category" value="phones"');
+    expect(html).toContain('href="/search?q=%E6%9D%AF&amp;category=phones&amp;sort=relevance&amp;compare=a"');
   });
 });
 
@@ -77,7 +78,7 @@ describe("product card presentation", () => {
 
     expect(html).not.toContain("实时淘宝报价");
     expect(html).not.toContain("Xiaomi 小米15 5G 全新手机");
-    expect(html).toContain("当前已收录最低价");
+    expect(html).toContain("最低正式报价");
   });
 
   it("keeps live Pinduoduo listings outside while preserving its comparable headline price", async () => {
@@ -127,7 +128,7 @@ describe("product card presentation", () => {
     expect(withLive).not.toContain("javascript:alert(1)");
     expect(withLive).not.toMatch(/优惠信息|销量|品牌好店/);
     expect(withoutLive).not.toContain("实时拼多多报价");
-    expect(withoutLive).toContain("当前已收录最低价");
+    expect(withoutLive).toContain("最低正式报价");
   });
 
   it("keeps an unknown live SKU separate from the persisted headline price", async () => {
@@ -140,7 +141,7 @@ describe("product card presentation", () => {
     )[0]} />);
 
     expect(html).toContain("¥7,599");
-    expect(html).toContain("当前已收录最低价");
+    expect(html).toContain("最低正式报价");
     expect(html).not.toContain("¥9.9");
     expect(html).not.toContain("当前可比最低价");
   });
@@ -189,12 +190,13 @@ describe("product card presentation", () => {
     expect(html).toContain(`PriceAI 评分：${row.valueScore}`);
     expect(html).toContain("256GB");
     expect(html).toContain("购买参考");
-    expect(html.indexOf("购买参考")).toBeLessThan(html.indexOf("个平台报价"));
+    expect(html.indexOf("购买参考")).toBeLessThan(html.indexOf("同规格正式报价"));
     expect(html).not.toContain("PriceAI 观点");
     expect(html).not.toContain("商品摘要");
     expect(html).toContain("/products/apple-iphone-16-pro#price-history-heading");
     expect(html).toContain("查看历史价格");
-    expect(html).toContain("当前已收录最低价");
+    expect(html).toContain("最低正式报价");
+    expect(html).toContain('aria-label="iPhone 16 Pro 标准商品决策卡"');
     expect(html).not.toMatch(/历史最低价|折扣|已售|AI 推荐/);
   });
   it("renders unavailable states without a zero price or fabricated score", async () => {
@@ -238,10 +240,42 @@ describe("live Taobao offer presentation", () => {
     expect(html).toContain("淘宝商品一");
     expect(html).toContain("淘宝商品二");
     expect(html).toContain("常规成交价 ¥7,999");
-    expect(html).toContain("优惠后 ¥7,599");
+    expect(html).toContain("优惠后（条件优惠价） ¥7,599");
     expect(html).toContain("需满足活动/地区/领券等条件");
     expect(html).toContain("地区补贴");
     expect(html).toContain("去淘宝看看");
+    expect(html).toContain("data-platform-badge=\"淘宝\"");
+    expect(html.indexOf("data-platform-badge=\"淘宝\"")).toBeLessThan(html.indexOf("data-live-offer-image=\"true\""));
+    expect(html).toContain("line-clamp-3");
+    expect(html).toContain("data-live-offer-action=\"true\"");
+  });
+
+  it("keeps a fixed image area when an image is absent and limits promotion tags", async () => {
+    const { LiveTaobaoOffers } = await import("./live-taobao-offers");
+    const html = renderToStaticMarkup(<LiveTaobaoOffers offers={[
+      taobaoOffer({
+        image: null,
+        promotionTags: ["官方立减", "地区补贴", "店铺券", "会员专享", "赠品"],
+      }),
+    ]} />);
+
+    expect(html).toContain("data-live-offer-image=\"placeholder\"");
+    expect(html).toContain("商品图片待补充");
+    expect(html).toContain("官方立减");
+    expect(html).toContain("地区补贴");
+    expect(html).toContain("店铺券");
+    expect(html).not.toContain("会员专享");
+    expect(html).not.toContain("赠品");
+  });
+
+  it("renders a clear unavailable action when a live listing has no safe URL", async () => {
+    const { LiveTaobaoOffers } = await import("./live-taobao-offers");
+    const html = renderToStaticMarkup(<LiveTaobaoOffers offers={[
+      taobaoOffer({ productUrl: null }),
+    ]} />);
+
+    expect(html).toContain("暂无可用跳转");
+    expect(html).toContain("aria-disabled=\"true\"");
   });
 
   it("uses the same external live-offer area and card skeleton for Pinduoduo", async () => {
@@ -254,7 +288,7 @@ describe("live Taobao offer presentation", () => {
     expect(html).toContain("近2小时已拼100+件");
     expect(html).toContain("券额 ¥200");
     expect(html).toContain("使用门槛 ¥1,000");
-    expect(html).toContain("额外优惠 ¥50");
+    expect(html).not.toContain("额外优惠 ¥50");
   });
 
   it("deduplicates exact items and conservative same-shop near-duplicates before sorting", async () => {

@@ -7,13 +7,18 @@ import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SearchForm } from "@/components/search/search-form";
 import { getProducts } from "@/lib/catalog/repository";
+import { buildHomeDailyHighlights, buildHomeDiscoveryItems, buildHomeRecommendationFeed } from "@/lib/home/home-feed";
 import { searchCatalog } from "@/lib/search/products";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const products = await getProducts();
-  const featured = searchCatalog(products, { sort: "score_desc" }).slice(0, 4);
-  const priceFocus = searchCatalog(products, { sort: "price_asc" }).slice(0, 3);
+  const rankedCatalog = searchCatalog(products, { sort: "score_desc" });
+  const dailyHighlights = buildHomeDailyHighlights(rankedCatalog);
+  const recommendationFeed = buildHomeRecommendationFeed(rankedCatalog, {
+    excludedProductIds: dailyHighlights.map((item) => item.row.product.id),
+  });
+  const discoveryItems = buildHomeDiscoveryItems(searchCatalog(products, { sort: "price_asc" }));
 
   return (
     <>
@@ -29,11 +34,11 @@ export default async function Home() {
               <SearchForm align="start" />
               <HomeCategoryNav />
             </div>
-            <HeroDiscovery products={featured} />
+            <HeroDiscovery highlights={dailyHighlights} />
           </div>
         </section>
-        <FeaturedProducts products={featured} />
-        <ShoppingDiscovery priceFocus={priceFocus} rankedProducts={featured.slice(0, 3)} />
+        <FeaturedProducts feed={recommendationFeed} />
+        <ShoppingDiscovery items={discoveryItems} />
         <Capabilities />
       </main>
       <SiteFooter />

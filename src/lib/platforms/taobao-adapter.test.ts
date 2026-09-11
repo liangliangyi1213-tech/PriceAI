@@ -40,9 +40,24 @@ describe("TaobaoAdapter", () => {
     expect(searchPhoneGoods).toHaveBeenCalledWith("小米15 手机", expect.objectContaining({ startPrice: 2500 }));
   });
 
+  it("uses the generic client boundary without forcing a phone category for generic searches", async () => {
+    const searchGoods = vi.fn().mockResolvedValue({ items: [liveOffer], rawCount: 1 });
+    const searchPhoneGoods = vi.fn().mockResolvedValue({ items: [], rawCount: 0 });
+    const adapter = new TaobaoAdapter({ client: { searchGoods, searchPhoneGoods } });
+
+    const results = await adapter.searchProducts("秋季衣服");
+
+    expect(results).toHaveLength(1);
+    expect(searchGoods).toHaveBeenCalledWith("秋季衣服", expect.not.objectContaining({ categoryId: "1512" }));
+    expect(searchPhoneGoods).not.toHaveBeenCalled();
+  });
+
   it("converts upstream failures into a safe platform error", async () => {
     const adapter = new TaobaoAdapter({
-      client: { searchPhoneGoods: vi.fn().mockRejectedValue(new Error("Authorization: private-token")) },
+      client: {
+        searchGoods: vi.fn().mockRejectedValue(new Error("Authorization: private-token")),
+        searchPhoneGoods: vi.fn().mockResolvedValue({ items: [], rawCount: 0 }),
+      },
     });
 
     await expect(adapter.searchProducts("iPhone 16 Pro")).rejects.toMatchObject({
