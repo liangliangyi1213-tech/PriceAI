@@ -10,6 +10,7 @@ import { searchHref } from "@/components/search/presentation";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { getProducts } from "@/lib/catalog/repository";
+import { resolveCatalogImagesForProducts } from "@/lib/catalog-images/service";
 import { parseCompareQuery } from "@/lib/compare/query";
 import {
   availableCatalogCategories,
@@ -63,12 +64,19 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
   const scopedProducts = filterCatalogProductsForContext(products, searchContext);
   const effectiveQuery = queryForContext(searchQuery, searchContext);
   const catalogRows = searchCatalog(scopedProducts, effectiveQuery);
-  const liveSources = searchQuery.query && searchContext.matcher === "phone"
+  const imageResultsPromise = resolveCatalogImagesForProducts(catalogRows.map(({ product }) => ({
+    productId: product.id,
+    variantId: null,
+    legacyImage: product.image,
+  })));
+  const liveSourcesPromise = searchQuery.query && searchContext.matcher === "phone"
     ? await Promise.allSettled([
         getLivePinduoduoOffers(scopedProducts, searchQuery.query),
         getLiveTaobaoOffers(catalogRows.map((row) => row.product)),
       ])
     : [];
+  const [imageResults, liveSources] = await Promise.all([imageResultsPromise, liveSourcesPromise]);
+  const imagesByProductId = new Map(imageResults.map((result) => [result.productId, result.resolution]));
   const liveOffersByProduct = liveSources[0]?.status === "fulfilled" ? liveSources[0].value : undefined;
   const liveTaobaoOffersByProduct = liveSources[1]?.status === "fulfilled" ? liveSources[1].value : undefined;
   const rows = searchCatalog(scopedProducts, effectiveQuery, liveOffersByProduct, liveTaobaoOffersByProduct);
@@ -111,7 +119,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
               <div className="grid items-stretch gap-5">
                 {rows.map((row) => (
                   <div className="grid min-w-0 gap-3" key={row.product.id}>
-                    <SearchProductCard row={row}><CompareToggleButton productOptions={productOptions} productSlug={row.product.slug} /></SearchProductCard>
+                    <SearchProductCard image={imagesByProductId.get(row.product.id)} row={row}><CompareToggleButton productOptions={productOptions} productSlug={row.product.slug} /></SearchProductCard>
                     <LiveSearchOffers pinduoduoOffers={row.livePinduoduoOffers} productName={row.product.name} taobaoOffers={row.liveTaobaoOffers} />
                   </div>
                 ))}

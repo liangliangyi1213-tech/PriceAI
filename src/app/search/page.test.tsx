@@ -8,11 +8,13 @@ const mocks = vi.hoisted(() => ({
   getProducts: vi.fn(),
   getLivePinduoduoOffers: vi.fn(),
   getLiveTaobaoOffers: vi.fn(),
+  resolveCatalogImagesForProducts: vi.fn(),
 }));
 
 vi.mock("@/lib/catalog/repository", () => ({ getProducts: mocks.getProducts }));
 vi.mock("@/lib/search/pinduoduo-live-service", () => ({ getLivePinduoduoOffers: mocks.getLivePinduoduoOffers }));
 vi.mock("@/lib/search/taobao-live-service", () => ({ getLiveTaobaoOffers: mocks.getLiveTaobaoOffers }));
+vi.mock("@/lib/catalog-images/service", () => ({ resolveCatalogImagesForProducts: mocks.resolveCatalogImagesForProducts }));
 vi.mock("@/components/layout/site-header", () => ({ SiteHeader: () => <header /> }));
 vi.mock("@/components/layout/site-footer", () => ({ SiteFooter: () => <footer /> }));
 vi.mock("@/components/compare/compare-selection", () => ({
@@ -75,6 +77,18 @@ beforeEach(() => {
     mocks.events.push("taobao");
     return new Map([[phones[0].id, [liveTaobaoOffer()]]]);
   });
+  mocks.resolveCatalogImagesForProducts.mockReset().mockImplementation(async (inputs: Array<{ productId: string; variantId: string | null }>) =>
+    inputs.map((input) => ({
+      ...input,
+      resolution: {
+        kind: "image",
+        source: "approved_product",
+        url: "https://img.alicdn.com/search-primary.jpg",
+        imageId: "image-search",
+        platform: "taobao",
+      },
+    })),
+  );
 });
 
 describe("search page live Pinduoduo integration", () => {
@@ -90,6 +104,10 @@ describe("search page live Pinduoduo integration", () => {
     expect(html).toContain("页面淘宝实时商品");
     expect(html).toContain("实时平台报价");
     expect(html.indexOf("</article>")).toBeLessThan(html.indexOf("实时平台报价"));
+    expect(html).toContain("https://img.alicdn.com/search-primary.jpg");
+    expect(mocks.resolveCatalogImagesForProducts).toHaveBeenCalledWith([
+      expect.objectContaining({ productId: phones[0].id, variantId: null }),
+    ]);
   });
 
   it("keeps catalog and PDD results visible when the Taobao service fails", async () => {

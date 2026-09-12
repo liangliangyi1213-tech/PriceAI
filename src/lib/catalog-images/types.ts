@@ -41,11 +41,13 @@ export type CatalogImageResolution = Readonly<{
   source: "approved_variant" | "approved_product" | "legacy";
   url: string;
   imageId: string | null;
+  platform: string | null;
 }> | Readonly<{
   kind: "none";
   source: "none";
   url: null;
   imageId: null;
+  platform: null;
 }>;
 
 export type CreateCatalogImageCandidate = Readonly<{

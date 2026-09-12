@@ -205,7 +205,7 @@ describe("product card presentation", () => {
     const html = renderToStaticMarkup(<SearchProductCard row={row} />);
     expect(html).toContain("暂无有效报价");
     expect(html).toContain("暂无数据");
-    expect(html).toContain("商品图片待补充");
+    expect(html).toContain("暂无商品图");
     expect(html).not.toContain("¥0");
     expect(html).not.toContain("商品摘要");
   });

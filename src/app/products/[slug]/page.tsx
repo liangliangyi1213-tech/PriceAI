@@ -9,6 +9,7 @@ import { ProductInsightPanel } from "@/components/product/product-insight-panel"
 import { ProductSpecifications } from "@/components/product/product-specifications";
 import { getProductInsight } from "@/lib/ai/product-insight";
 import { getProductBySlug } from "@/lib/catalog/repository";
+import { resolveCatalogImageForProduct } from "@/lib/catalog-images/service";
 import { getVariantPriceHistoryViewModel } from "@/lib/price-history/service";
 import { scoreVariant } from "@/lib/scoring/value-score";
 
@@ -20,10 +21,14 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const variant = product.variants[0];
   if (!variant) notFound();
   const score = scoreVariant(variant);
-  const [insight, priceHistory] = await Promise.all([getProductInsight(product, variant), getVariantPriceHistoryViewModel(variant.id)]);
+  const [insight, priceHistory, image] = await Promise.all([
+    getProductInsight(product, variant),
+    getVariantPriceHistoryViewModel(variant.id),
+    resolveCatalogImageForProduct({ productId: product.id, variantId: variant.id, legacyImage: product.image }),
+  ]);
 
   return <><SiteHeader/><main className="mx-auto max-w-6xl px-4 py-6 sm:py-10">
-    <ProductDecisionHero compareAction={<CompareToggleButton productOptions={[{ slug: product.slug, name: product.name }]} productSlug={product.slug}/>} product={product} score={score.total} variant={variant}/>
+    <ProductDecisionHero compareAction={<CompareToggleButton productOptions={[{ slug: product.slug, name: product.name }]} productSlug={product.slug}/>} image={image} product={product} score={score.total} variant={variant}/>
     <PlatformOffers offers={variant.offers}/>
     <PriceHistoryPanel view={priceHistory}/>
     <ProductInsightPanel insight={insight}/>

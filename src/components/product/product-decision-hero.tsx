@@ -1,18 +1,21 @@
 import type { ReactNode } from "react";
+import { CatalogProductImage } from "@/components/catalog/catalog-product-image";
 import { PriceAIScore } from "@/components/home/priceai-score";
-import { ProductImage } from "@/components/search/product-image";
 import { specificationSummary } from "@/components/search/specification-summary";
+import type { CatalogImageResolution } from "@/lib/catalog-images/types";
 import { formatPrice, getLowestOffer } from "@/lib/pricing/offers";
 import type { Product, ProductVariant } from "@/types/catalog";
 import { getDetailPurchaseReference } from "./product-detail-presentation";
 
-export function ProductDecisionHero({ product, variant, score, compareAction }: { product: Product; variant: ProductVariant; score: number; compareAction?: ReactNode }) {
+const noImage: CatalogImageResolution = { kind: "none", source: "none", url: null, imageId: null, platform: null };
+
+export function ProductDecisionHero({ product, variant, score, image = noImage, compareAction }: { product: Product; variant: ProductVariant; score: number; image?: CatalogImageResolution; compareAction?: ReactNode }) {
   const lowestOffer = getLowestOffer(variant.offers);
   const specification = specificationSummary(product.category, variant);
   return (
     <section aria-labelledby="product-heading" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm lg:overflow-visible lg:border-0 lg:bg-transparent lg:shadow-none">
       <div className="grid lg:grid-cols-[minmax(16rem,0.8fr)_minmax(0,1.2fr)] lg:gap-5">
-        <div className="border-b border-slate-100 lg:self-start lg:overflow-hidden lg:rounded-3xl lg:border lg:border-slate-200 lg:bg-white lg:shadow-sm"><ProductImage brand={product.brand} name={product.name} src={product.image} /></div>
+        <div className="border-b border-slate-100 lg:self-start lg:overflow-hidden lg:rounded-3xl lg:border lg:border-slate-200 lg:bg-white lg:shadow-sm"><CatalogProductImage className="h-64 sm:h-80 lg:min-h-96" imageClassName="object-contain p-6" productName={product.name} resolution={image} eager /></div>
         <div className="p-5 sm:p-7 lg:rounded-3xl lg:border lg:border-slate-200 lg:bg-white lg:p-8 lg:shadow-sm">
           <p className="text-sm font-semibold text-blue-700">{product.brand}</p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950 [overflow-wrap:anywhere] sm:text-4xl" id="product-heading">{product.name}</h1>

@@ -30,8 +30,9 @@ describe("SupabaseCatalogImageRepository", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("reads only approved primary images for the requested product", async () => {
-    const eqProduct = vi.fn().mockResolvedValue({ data: [approvedRow], error: null });
-    const eqPrimary = vi.fn(() => ({ eq: eqProduct }));
+    const inProduct = vi.fn().mockResolvedValue({ data: [approvedRow], error: null });
+    const eqIsPrimary = vi.fn(() => ({ in: inProduct }));
+    const eqPrimary = vi.fn(() => ({ eq: eqIsPrimary }));
     const eqApproved = vi.fn(() => ({ eq: eqPrimary }));
     const select = vi.fn(() => ({ eq: eqApproved }));
     mocks.getCatalogSyncWriteClient.mockReturnValue({ from: vi.fn(() => ({ select })) });
@@ -40,7 +41,24 @@ describe("SupabaseCatalogImageRepository", () => {
       .resolves.toHaveLength(1);
     expect(eqApproved).toHaveBeenCalledWith("status", "approved");
     expect(eqPrimary).toHaveBeenCalledWith("role", "primary");
-    expect(eqProduct).toHaveBeenCalledWith("product_id", "product-1");
+    expect(eqIsPrimary).toHaveBeenCalledWith("is_primary", true);
+    expect(inProduct).toHaveBeenCalledWith("product_id", ["product-1"]);
+  });
+
+  it("batch reads only active approved primaries for the requested Products", async () => {
+    const inProducts = vi.fn().mockResolvedValue({ data: [approvedRow], error: null });
+    const eqIsPrimary = vi.fn(() => ({ in: inProducts }));
+    const eqPrimary = vi.fn(() => ({ eq: eqIsPrimary }));
+    const eqApproved = vi.fn(() => ({ eq: eqPrimary }));
+    const select = vi.fn(() => ({ eq: eqApproved }));
+    mocks.getCatalogSyncWriteClient.mockReturnValue({ from: vi.fn(() => ({ select })) });
+
+    await expect(new SupabaseCatalogImageRepository().getApprovedPrimariesForProducts(["product-1", "product-2"]))
+      .resolves.toHaveLength(1);
+    expect(eqApproved).toHaveBeenCalledWith("status", "approved");
+    expect(eqPrimary).toHaveBeenCalledWith("role", "primary");
+    expect(eqIsPrimary).toHaveBeenCalledWith("is_primary", true);
+    expect(inProducts).toHaveBeenCalledWith("product_id", ["product-1", "product-2"]);
   });
 
   it("creates a candidate without approving or assigning it as primary", async () => {
@@ -152,8 +170,9 @@ describe("SupabaseCatalogImageRepository", () => {
   });
 
   it("converts database failures into a safe repository error", async () => {
-    const eqProduct = vi.fn().mockResolvedValue({ data: null, error: new Error("credential detail") });
-    const eqPrimary = vi.fn(() => ({ eq: eqProduct }));
+    const inProduct = vi.fn().mockResolvedValue({ data: null, error: new Error("credential detail") });
+    const eqIsPrimary = vi.fn(() => ({ in: inProduct }));
+    const eqPrimary = vi.fn(() => ({ eq: eqIsPrimary }));
     const eqApproved = vi.fn(() => ({ eq: eqPrimary }));
     mocks.getCatalogSyncWriteClient.mockReturnValue({ from: vi.fn(() => ({ select: vi.fn(() => ({ eq: eqApproved })) })) });
 

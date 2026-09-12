@@ -84,13 +84,20 @@ function isUniqueViolation(error: unknown): boolean {
 
 export class SupabaseCatalogImageRepository {
   async getApprovedPrimaries(productId: string): Promise<CatalogImage[]> {
+    return this.getApprovedPrimariesForProducts([productId]);
+  }
+
+  async getApprovedPrimariesForProducts(productIds: readonly string[]): Promise<CatalogImage[]> {
+    const ids = [...new Set(productIds.map((productId) => productId.trim()).filter(Boolean))];
+    if (ids.length === 0) return [];
     try {
       const { data, error } = await getCatalogSyncWriteClient()
         .from("product_images")
         .select("*")
         .eq("status", "approved")
         .eq("role", "primary")
-        .eq("product_id", productId);
+        .eq("is_primary", true)
+        .in("product_id", ids);
       if (error) throw error;
       return ((data ?? []) as ProductImageRow[])
         .map(mapProductImageRow)

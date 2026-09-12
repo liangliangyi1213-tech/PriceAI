@@ -7,12 +7,19 @@ import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SearchForm } from "@/components/search/search-form";
 import { getProducts } from "@/lib/catalog/repository";
+import { resolveCatalogImagesForProducts } from "@/lib/catalog-images/service";
 import { buildHomeDailyHighlights, buildHomeDiscoveryItems, buildHomeRecommendationFeed } from "@/lib/home/home-feed";
 import { searchCatalog } from "@/lib/search/products";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const products = await getProducts();
+  const imageResults = await resolveCatalogImagesForProducts(products.map((product) => ({
+    productId: product.id,
+    variantId: null,
+    legacyImage: product.image,
+  })));
+  const imagesByProductId = new Map(imageResults.map((result) => [result.productId, result.resolution]));
   const rankedCatalog = searchCatalog(products, { sort: "score_desc" });
   const dailyHighlights = buildHomeDailyHighlights(rankedCatalog);
   const recommendationFeed = buildHomeRecommendationFeed(rankedCatalog, {
@@ -34,10 +41,10 @@ export default async function Home() {
               <SearchForm align="start" />
               <HomeCategoryNav />
             </div>
-            <HeroDiscovery highlights={dailyHighlights} />
+            <HeroDiscovery highlights={dailyHighlights} imagesByProductId={imagesByProductId} />
           </div>
         </section>
-        <FeaturedProducts feed={recommendationFeed} />
+        <FeaturedProducts feed={recommendationFeed} imagesByProductId={imagesByProductId} />
         <ShoppingDiscovery items={discoveryItems} />
         <Capabilities />
       </main>

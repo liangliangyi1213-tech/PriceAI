@@ -1,11 +1,14 @@
 import Link from "next/link";
+import { CatalogProductImage } from "@/components/catalog/catalog-product-image";
+import type { CatalogImageResolution } from "@/lib/catalog-images/types";
 import type { HomeRecommendationFeed } from "@/lib/home/home-feed";
 import { formatPrice } from "@/lib/pricing/offers";
 
 import { PriceAIScore } from "./priceai-score";
-import { ProductImagePlaceholder } from "./product-image-placeholder";
 
-export function FeaturedProducts({ feed }: { feed: HomeRecommendationFeed }) {
+const noImage: CatalogImageResolution = { kind: "none", source: "none", url: null, imageId: null, platform: null };
+
+export function FeaturedProducts({ feed, imagesByProductId }: { feed: HomeRecommendationFeed; imagesByProductId: ReadonlyMap<string, CatalogImageResolution> }) {
   return (
     <section aria-labelledby="featured-heading" className="page-shell py-12 sm:py-16">
       <div className="flex items-end justify-between gap-4">
@@ -29,7 +32,7 @@ export function FeaturedProducts({ feed }: { feed: HomeRecommendationFeed }) {
               href={`/products/${row.product.slug}`}
               key={row.product.id}
             >
-              <ProductImagePlaceholder brand={row.product.brand} name={row.product.name} />
+              <CatalogProductImage className="aspect-[4/3] border-b border-slate-100" productName={row.product.name} resolution={imagesByProductId.get(row.product.id) ?? noImage} />
               <div className="flex flex-1 flex-col p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-slate-600">{row.product.brand}</p>

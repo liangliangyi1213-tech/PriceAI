@@ -4,6 +4,15 @@ import { describe, expect, it } from "vitest";
 import { phones } from "@/data/phones";
 import { buildHomeDailyHighlights, buildHomeDiscoveryItems, buildHomeRecommendationFeed } from "@/lib/home/home-feed";
 import { searchCatalog } from "@/lib/search/products";
+import type { CatalogImageResolution } from "@/lib/catalog-images/types";
+
+const approvedCatalogImage: CatalogImageResolution = {
+  kind: "image",
+  source: "approved_product",
+  url: "https://img.alicdn.com/catalog-primary.jpg",
+  imageId: "image-1",
+  platform: "taobao",
+};
 
 describe("home recommendation and discovery sections", () => {
   it("does not render a fake visual for an invalid catalog image", async () => {
@@ -19,7 +28,7 @@ describe("home recommendation and discovery sections", () => {
   it("labels recommendation fallback honestly and uses the generic ranking entry", async () => {
     const { FeaturedProducts } = await import("./featured-products");
     const feed = buildHomeRecommendationFeed(searchCatalog(phones, { sort: "score_desc" }));
-    const html = renderToStaticMarkup(<FeaturedProducts feed={feed} />);
+    const html = renderToStaticMarkup(<FeaturedProducts feed={feed} imagesByProductId={new Map([[feed.items[0].product.id, approvedCatalogImage]])} />);
 
     expect(html).toContain("热门值得买");
     expect(html).not.toContain(">为你推荐<");
@@ -32,16 +41,18 @@ describe("home recommendation and discovery sections", () => {
     expect(html).toContain("左右滑动查看更多");
     expect(html).toContain('href="/rankings"');
     expect(html).not.toContain('href="/rankings/phones"');
+    expect(html).toContain("https://img.alicdn.com/catalog-primary.jpg");
   });
 
   it("renders daily highlights with factual signals", async () => {
     const { HeroDiscovery } = await import("./hero-discovery");
     const highlights = buildHomeDailyHighlights(searchCatalog(phones, { sort: "score_desc" }));
-    const html = renderToStaticMarkup(<HeroDiscovery highlights={highlights} />);
+    const html = renderToStaticMarkup(<HeroDiscovery highlights={highlights} imagesByProductId={new Map([[highlights[0].row.product.id, approvedCatalogImage]])} />);
 
     expect(html).toContain("今日值得关注");
     expect(html).toContain("已核验决策信号");
     expect(html).toContain("个平台报价");
+    expect(html).toContain("https://img.alicdn.com/catalog-primary.jpg");
   });
 
   it("renders image-led discovery cards with category and factual reasons", async () => {

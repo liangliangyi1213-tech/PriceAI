@@ -11,7 +11,7 @@ describe("home shopping navigation", () => {
   it("uses the generic rankings entry from the hero discovery area", async () => {
     const { HeroDiscovery } = await import("./hero-discovery");
     const highlights = buildHomeDailyHighlights(searchCatalog(phones, { sort: "score_desc" }));
-    const html = renderToStaticMarkup(<HeroDiscovery highlights={highlights} />);
+    const html = renderToStaticMarkup(<HeroDiscovery highlights={highlights} imagesByProductId={new Map()} />);
 
     expect(html).toContain('href="/rankings"');
     expect(html).not.toContain('href="/rankings/phones"');

@@ -1,11 +1,12 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { CatalogProductImage } from "@/components/catalog/catalog-product-image";
 import { PriceAIScore } from "@/components/home/priceai-score";
+import type { CatalogImageResolution } from "@/lib/catalog-images/types";
 import { formatPrice } from "@/lib/pricing/offers";
 import type { ProductSearchRow } from "@/lib/search/products";
 import type { Offer } from "@/types/catalog";
 import { categoryLabel, productCardDetails, purchaseOpinion } from "./presentation";
-import { ProductImage } from "./product-image";
 import { specificationSummary } from "./specification-summary";
 
 function OfferRow({ offer, lowestId }: { offer: Offer; lowestId?: string }) {
@@ -13,7 +14,9 @@ function OfferRow({ offer, lowestId }: { offer: Offer; lowestId?: string }) {
   return <li className={`flex min-w-0 items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm ${isLowest ? "bg-blue-50 text-blue-800" : "bg-slate-50 text-slate-600"}`}><span className="min-w-0 truncate">{offer.platform}</span><span className={`shrink-0 tabular-nums ${isLowest ? "font-bold text-blue-700" : "font-semibold text-slate-700"}`}>{formatPrice(offer.price)}</span>{isLowest ? <span className="sr-only">最低正式报价</span> : null}</li>;
 }
 
-export function SearchProductCard({ row, children }: { row: ProductSearchRow; children?: ReactNode }) {
+const noImage: CatalogImageResolution = { kind: "none", source: "none", url: null, imageId: null, platform: null };
+
+export function SearchProductCard({ row, image = noImage, children }: { row: ProductSearchRow; image?: CatalogImageResolution; children?: ReactNode }) {
   const { product, lowestOffer, displayLowestPrice, livePinduoduoOffers } = row;
   const { variant, offers } = productCardDetails(row);
   const href = `/products/${product.slug}`;
@@ -30,7 +33,7 @@ export function SearchProductCard({ row, children }: { row: ProductSearchRow; ch
   return (
     <article aria-label={`${product.name} 标准商品决策卡`} className="group grid min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:border-blue-200 hover:shadow-md md:grid-cols-[13rem_minmax(0,1fr)]">
       <Link aria-label={`查看 ${product.name}`} className="relative block min-h-0 focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-blue-600" href={href} prefetch={false}>
-        <ProductImage brand={product.brand} name={product.name} src={product.image} />
+        <CatalogProductImage className="h-40 sm:h-48 md:h-full md:min-h-72" imageClassName="object-contain p-5 transition-transform duration-300 motion-safe:group-hover:scale-105" productName={product.name} resolution={image} />
         <span className="absolute left-3 top-3 rounded-full border border-white bg-white/90 px-2.5 py-1 text-xs font-medium text-slate-600">{categoryLabel(product.category)}</span>
       </Link>
       <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
