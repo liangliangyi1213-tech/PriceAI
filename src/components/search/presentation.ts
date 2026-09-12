@@ -35,15 +35,7 @@ function isCouponAmount(value: number | undefined): value is number {
 
 /** Whitelists the optional facts that may be rendered for a public live listing. */
 export function livePinduoduoOfferFacts(offer: LivePinduoduoOffer) {
-  let image: string | null = null;
-  if (offer.image) {
-    try {
-      const parsed = new URL(offer.image);
-      if (parsed.protocol === "https:" && parsed.hostname && !parsed.username && !parsed.password) image = parsed.href;
-    } catch {
-      image = null;
-    }
-  }
+  const image = offer.image;
   const salesLabel = suppliedText(offer.realtimeSalesTip) ?? suppliedText(offer.salesTip)
     ?? (offer.sales !== null && Number.isFinite(offer.sales) && offer.sales >= 0 ? `销量 ${offer.sales.toLocaleString("zh-CN")}` : null);
   const couponLabels: string[] = [];

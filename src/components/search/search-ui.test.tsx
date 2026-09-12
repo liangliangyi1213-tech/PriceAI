@@ -13,7 +13,7 @@ function liveOffer(overrides: Partial<LivePinduoduoOffer> = {}): LivePinduoduoOf
     variantId: phones[0].variants[0].id,
     goodsId: "live-1",
     title: "Apple iPhone 16 实时商品标题",
-    image: "https://example.com/live-phone.jpg",
+    image: { platform: "pinduoduo", externalProductId: "live-1", url: "https://img.pddpic.com/live-phone.jpg", alt: "iPhone 16 Pro" },
     merchant: "品牌好店",
     merchantType: 1,
     hasCoupon: true,
@@ -64,7 +64,7 @@ describe("product card presentation", () => {
       variantId: null,
       itemId: "tb-xiaomi-15",
       title: "Xiaomi 小米15 5G 全新手机",
-      image: "https://img.example.test/xiaomi.jpg",
+      image: { platform: "taobao", externalProductId: "tb-xiaomi-15", url: "https://img.alicdn.com/xiaomi.jpg", alt: "小米 15" },
       merchant: "小米授权店",
       salePrice: 4299,
       promotionPrice: 3999,
@@ -108,7 +108,7 @@ describe("product card presentation", () => {
   it("omits absent live facts and the entire section when no live data exists", async () => {
     const { SearchProductCard } = await import("./search-product-card");
     const absentFacts = liveOffer({
-      image: "javascript:alert(1)",
+      image: null,
       merchant: "",
       hasCoupon: false,
       couponAmount: undefined,
@@ -218,7 +218,7 @@ describe("live Taobao offer presentation", () => {
       variantId: null,
       itemId: "tb-default",
       title: "Apple iPhone 16 Pro 官方手机",
-      image: "https://img.example.test/iphone.jpg",
+      image: { platform: "taobao", externalProductId: "tb-default", url: "https://img.alicdn.com/iphone.jpg", alt: "iPhone 16 Pro" },
       merchant: "Apple 授权店",
       salePrice: 7_999,
       promotionPrice: null,
@@ -231,7 +231,7 @@ describe("live Taobao offer presentation", () => {
 
   it("renders one independent card per offer and keeps conditional prices explicit", async () => {
     const { LiveTaobaoOffers } = await import("./live-taobao-offers");
-    const html = renderToStaticMarkup(<LiveTaobaoOffers offers={[
+    const html = renderToStaticMarkup(<LiveTaobaoOffers productName="iPhone 16 Pro" offers={[
       taobaoOffer({ itemId: "one", title: "淘宝商品一", promotionPrice: 7_599, promotionTags: ["地区补贴"] }),
       taobaoOffer({ itemId: "two", title: "淘宝商品二", salePrice: 7_899 }),
     ]} />);
@@ -246,13 +246,17 @@ describe("live Taobao offer presentation", () => {
     expect(html).toContain("去淘宝看看");
     expect(html).toContain("data-platform-badge=\"淘宝\"");
     expect(html.indexOf("data-platform-badge=\"淘宝\"")).toBeLessThan(html.indexOf("data-live-offer-image=\"true\""));
+    expect(html).toContain('alt="iPhone 16 Pro"');
+    expect(html).toContain('data-image-platform="taobao"');
+    expect(html).toContain('data-external-product-id="tb-default"');
+    expect(html).not.toContain('alt="淘宝商品一"');
     expect(html).toContain("line-clamp-3");
     expect(html).toContain("data-live-offer-action=\"true\"");
   });
 
   it("keeps a fixed image area when an image is absent and limits promotion tags", async () => {
     const { LiveTaobaoOffers } = await import("./live-taobao-offers");
-    const html = renderToStaticMarkup(<LiveTaobaoOffers offers={[
+    const html = renderToStaticMarkup(<LiveTaobaoOffers productName="iPhone 16 Pro" offers={[
       taobaoOffer({
         image: null,
         promotionTags: ["官方立减", "地区补贴", "店铺券", "会员专享", "赠品"],
@@ -260,7 +264,7 @@ describe("live Taobao offer presentation", () => {
     ]} />);
 
     expect(html).toContain("data-live-offer-image=\"placeholder\"");
-    expect(html).toContain("商品图片待补充");
+    expect(html).toContain("暂无商品图");
     expect(html).toContain("官方立减");
     expect(html).toContain("地区补贴");
     expect(html).toContain("店铺券");
@@ -270,7 +274,7 @@ describe("live Taobao offer presentation", () => {
 
   it("renders a clear unavailable action when a live listing has no safe URL", async () => {
     const { LiveTaobaoOffers } = await import("./live-taobao-offers");
-    const html = renderToStaticMarkup(<LiveTaobaoOffers offers={[
+    const html = renderToStaticMarkup(<LiveTaobaoOffers productName="iPhone 16 Pro" offers={[
       taobaoOffer({ productUrl: null }),
     ]} />);
 
@@ -280,7 +284,7 @@ describe("live Taobao offer presentation", () => {
 
   it("uses the same external live-offer area and card skeleton for Pinduoduo", async () => {
     const { LiveSearchOffers } = await import("./live-search-offers");
-    const html = renderToStaticMarkup(<LiveSearchOffers pinduoduoOffers={[liveOffer()]} taobaoOffers={[]} />);
+    const html = renderToStaticMarkup(<LiveSearchOffers pinduoduoOffers={[liveOffer()]} productName="iPhone 16 Pro" taobaoOffers={[]} />);
 
     expect(html).toContain('aria-label="实时平台报价"');
     expect(html).toContain('data-live-offer-card="拼多多"');
@@ -293,7 +297,7 @@ describe("live Taobao offer presentation", () => {
 
   it("deduplicates exact items and conservative same-shop near-duplicates before sorting", async () => {
     const { LiveTaobaoOffers } = await import("./live-taobao-offers");
-    const html = renderToStaticMarkup(<LiveTaobaoOffers offers={[
+    const html = renderToStaticMarkup(<LiveTaobaoOffers productName="iPhone 16 Pro" offers={[
       taobaoOffer({ itemId: "duplicate", title: "Apple iPhone 16 Pro 官方手机", image: null, productUrl: null, salePrice: 7_999 }),
       taobaoOffer({ itemId: "duplicate", title: "Apple iPhone 16 Pro 官方手机", promotionTags: ["官方立减"], salePrice: 7_899 }),
       taobaoOffer({ itemId: "near-one", title: "Apple iPhone 16 Pro 官方手机！", salePrice: 7_799 }),
@@ -307,7 +311,7 @@ describe("live Taobao offer presentation", () => {
 
   it("keeps possible configuration or bundle differences from the same shop", async () => {
     const { LiveTaobaoOffers } = await import("./live-taobao-offers");
-    const html = renderToStaticMarkup(<LiveTaobaoOffers offers={[
+    const html = renderToStaticMarkup(<LiveTaobaoOffers productName="iPhone 16 Pro" offers={[
       taobaoOffer({ itemId: "standard", title: "Apple iPhone 16 Pro 256GB 官方标配" }),
       taobaoOffer({ itemId: "bundle", title: "Apple iPhone 16 Pro 256GB 充电套装", salePrice: 8_199 }),
       taobaoOffer({ itemId: "larger", title: "Apple iPhone 16 Pro 512GB 官方标配", salePrice: 9_199 }),
@@ -320,7 +324,7 @@ describe("live Taobao offer presentation", () => {
 
   it("initially renders only three offers and labels the hidden remainder", async () => {
     const { LiveTaobaoOffers } = await import("./live-taobao-offers");
-    const html = renderToStaticMarkup(<LiveTaobaoOffers offers={[
+    const html = renderToStaticMarkup(<LiveTaobaoOffers productName="iPhone 16 Pro" offers={[
       taobaoOffer({ itemId: "incomplete", title: "信息较少", image: null, merchant: "", productUrl: null, salePrice: 6_999 }),
       taobaoOffer({ itemId: "complete-high", title: "完整高价", salePrice: 8_199 }),
       taobaoOffer({ itemId: "complete-low", title: "完整低价", salePrice: 7_699 }),
@@ -337,7 +341,7 @@ describe("live Taobao offer presentation", () => {
 
   it("does not render an expand control for three or fewer offers", async () => {
     const { LiveTaobaoOffers } = await import("./live-taobao-offers");
-    const html = renderToStaticMarkup(<LiveTaobaoOffers offers={[
+    const html = renderToStaticMarkup(<LiveTaobaoOffers productName="iPhone 16 Pro" offers={[
       taobaoOffer({ itemId: "one", title: "报价一" }),
       taobaoOffer({ itemId: "two", title: "报价二" }),
       taobaoOffer({ itemId: "three", title: "报价三" }),

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { selectLiveListingImage } from "@/lib/images/live-listing-image";
 import { getPlatformAdapter } from "@/lib/platforms/registry";
 import { TaobaoAdapter, type TaobaoPhoneOfferResult } from "@/lib/platforms/taobao-adapter";
 import type { Product } from "@/types/catalog";
@@ -33,7 +34,7 @@ function safeHttpsUrl(value: string | null): string | null {
   }
 }
 
-function publicOffer(productId: string, result: TaobaoPhoneOfferResult): LiveTaobaoProductOffer | null {
+function publicOffer(product: Product, result: TaobaoPhoneOfferResult): LiveTaobaoProductOffer | null {
   if (result.match.status !== "matched") return null;
   const offer = result.offer;
   const itemId = offer.itemId.trim();
@@ -50,11 +51,16 @@ function publicOffer(productId: string, result: TaobaoPhoneOfferResult): LiveTao
     .filter(Boolean))].slice(0, 5);
 
   return {
-    productId,
+    productId: product.id,
     variantId: null,
     itemId,
     title,
-    image: safeHttpsUrl(offer.pictUrl ?? offer.smallImages[0] ?? null),
+    image: selectLiveListingImage({
+      platform: "taobao",
+      externalProductId: itemId,
+      confirmedProductName: product.name,
+      candidates: [offer.pictUrl, offer.smallImages[0]],
+    }),
     merchant,
     salePrice: offer.salePrice,
     promotionPrice,
@@ -107,7 +113,7 @@ export function createLiveTaobaoService(options: ServiceOptions = {}) {
         const results = await withDeadline(adapter.searchPhoneOffersForProduct(product), timeoutMs);
         const seen = new Set<string>();
         const offers = results.flatMap((result) => {
-          const mapped = publicOffer(product.id, result);
+          const mapped = publicOffer(product, result);
           if (!mapped || seen.has(mapped.itemId)) return [];
           seen.add(mapped.itemId);
           return [mapped];

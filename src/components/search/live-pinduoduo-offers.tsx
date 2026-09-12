@@ -2,7 +2,7 @@ import { livePinduoduoOfferFacts } from "@/components/search/presentation";
 import type { LivePinduoduoOffer } from "@/lib/search/pinduoduo-live-offer";
 import { LivePlatformOffers, type LivePlatformListing } from "./live-platform-offers";
 
-export function LivePinduoduoOffers({ offers }: { offers: readonly LivePinduoduoOffer[] }) {
+export function LivePinduoduoOffers({ offers, productName }: { offers: readonly LivePinduoduoOffer[]; productName: string }) {
   const listings: LivePlatformListing[] = offers.map((offer, index) => {
     const facts = livePinduoduoOfferFacts(offer);
     return {
@@ -14,6 +14,7 @@ export function LivePinduoduoOffers({ offers }: { offers: readonly LivePinduoduo
       metadata: facts.salesLabel,
       tags: facts.couponLabels,
       platformLabel: "拼多多",
+      confirmedProductName: productName,
     };
   });
   return <LivePlatformOffers ariaLabel="实时拼多多报价" listings={listings} notice="实时拼多多报价暂未计入 PriceAI 评分" title="实时拼多多报价" />;

@@ -112,7 +112,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
                 {rows.map((row) => (
                   <div className="grid min-w-0 gap-3" key={row.product.id}>
                     <SearchProductCard row={row}><CompareToggleButton productOptions={productOptions} productSlug={row.product.slug} /></SearchProductCard>
-                    <LiveSearchOffers pinduoduoOffers={row.livePinduoduoOffers} taobaoOffers={row.liveTaobaoOffers} />
+                    <LiveSearchOffers pinduoduoOffers={row.livePinduoduoOffers} productName={row.product.name} taobaoOffers={row.liveTaobaoOffers} />
                   </div>
                 ))}
               </div>

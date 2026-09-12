@@ -1,10 +1,12 @@
+import type { LiveListingImage } from "@/lib/images/live-listing-image";
+
 /** A public product-level Taobao listing, intentionally separate from persisted SKU Offers. */
 export type LiveTaobaoProductOffer = {
   productId: string;
   variantId: null;
   itemId: string;
   title: string;
-  image: string | null;
+  image: LiveListingImage | null;
   merchant: string;
   /** Normal sale price; never inferred from a conditional promotion. */
   salePrice: number;

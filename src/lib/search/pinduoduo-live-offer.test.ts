@@ -7,7 +7,7 @@ import { searchCatalog } from "./products";
 const product = phones.find((item) => item.slug === "apple-iphone-16")!;
 const goods = (overrides: Partial<PinduoduoGoods> = {}): PinduoduoGoods => ({
   goodsId: "123", goodsSign: null, goodsName: "Apple iPhone16 256GB 黑色 手机",
-  goodsThumbnailUrl: "https://example.com/thumb.jpg", goodsImageUrl: "https://example.com/phone.jpg",
+  goodsThumbnailUrl: "https://img.pddpic.com/thumb.jpg", goodsImageUrl: "https://img.pddpic.com/phone.jpg",
   categoryName: "手机", mallName: "品牌商城", merchantType: 1, salesTip: "1.2万+", realtimeSalesTip: null,
   hasCoupon: false, couponPrice: null, couponMinOrderAmount: null, minNormalPrice: 5000,
   promotionRate: 20, fetchedAt: new Date("2026-09-05T00:00:00Z"), ...overrides,
@@ -79,12 +79,23 @@ describe("live Pinduoduo offers", () => {
   it("maps honest metadata and a matching variant without mutating the catalog", () => {
     const before = structuredClone(product);
     const [offer] = selectLivePinduoduoOffers([product], "iphone16", [goods({ hasCoupon: true, couponPrice: 100, couponMinOrderAmount: 1000, extraCouponAmount: 20 })]).get(product.id)!;
-    expect(offer).toMatchObject({ productId: product.id, variantId: product.variants[0].id, goodsId: "123", title: "Apple iPhone16 256GB 黑色 手机", image: "https://example.com/phone.jpg", merchant: "品牌商城", price: 5000, normalPrice: 5000, source: "live", fetchedAt: "2026-09-05T00:00:00.000Z", salesTip: "1.2万+", sales: 12000, promotionRate: 20, hasCoupon: true, couponAmount: 100, couponMinOrderAmount: 1000, extraCouponAmount: 20 });
+    expect(offer).toMatchObject({ productId: product.id, variantId: product.variants[0].id, goodsId: "123", title: "Apple iPhone16 256GB 黑色 手机", image: { platform: "pinduoduo", externalProductId: "123", url: "https://img.pddpic.com/phone.jpg", alt: "iPhone 16" }, merchant: "品牌商城", price: 5000, normalPrice: 5000, source: "live", fetchedAt: "2026-09-05T00:00:00.000Z", salesTip: "1.2万+", sales: 12000, promotionRate: 20, hasCoupon: true, couponAmount: 100, couponMinOrderAmount: 1000, extraCouponAmount: 20 });
     expect(offer).not.toHaveProperty("rating");
     expect(offer).not.toHaveProperty("reviewCount");
     expect(offer).not.toHaveProperty("url");
     expect(offer).not.toHaveProperty("couponPrice");
     expect(product).toEqual(before);
+  });
+  it("falls back to the Pinduoduo thumbnail without changing the catalog image", () => {
+    const before = product.image;
+    const [offer] = selectLivePinduoduoOffers([product], "iphone16", [goods({ goodsImageUrl: null })]).get(product.id)!;
+    expect(offer.image).toMatchObject({
+      platform: "pinduoduo",
+      externalProductId: "123",
+      url: "https://img.pddpic.com/thumb.jpg",
+      alt: "iPhone 16",
+    });
+    expect(product.image).toBe(before);
   });
   it("keeps a valid live offer without inventing a missing merchant name", () => {
     const [offer] = selectLivePinduoduoOffers([product], "iphone16", [goods({ mallName: null })]).get(product.id)!;

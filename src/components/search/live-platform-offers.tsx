@@ -1,14 +1,16 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 
+import type { LiveListingImage } from "@/lib/images/live-listing-image";
 import { formatPrice } from "@/lib/pricing/offers";
+
+import { SafeProductImage } from "./safe-product-image";
 
 export type LivePlatformListing = {
   id: string;
   title: string;
-  image: string | null;
+  image: LiveListingImage | null;
   merchant: string | null;
   primaryPrice: number;
   primaryPriceLabel?: string;
@@ -20,6 +22,7 @@ export type LivePlatformListing = {
   href?: string | null;
   actionLabel?: string;
   platformLabel: string;
+  confirmedProductName: string;
 };
 
 export function LivePlatformOffers({
@@ -52,16 +55,7 @@ export function LivePlatformOffers({
           <span aria-hidden="true" className="size-1.5 rounded-full bg-blue-500" />{listing.platformLabel}
         </span>
 
-        <div className="relative mt-3 flex h-32 w-full shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50 sm:h-36" data-live-offer-image={listing.image ? "true" : "placeholder"}>
-          {listing.image ? (
-            <Image alt={listing.title} className="object-contain p-3" fill sizes="(max-width: 639px) calc(100vw - 4rem), (max-width: 1279px) 40vw, 280px" src={listing.image} unoptimized />
-          ) : (
-            <div className="flex flex-col items-center gap-2 text-slate-400" role="img" aria-label={`${listing.title}：商品图片待补充`}>
-              <span aria-hidden="true" className="flex size-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-400">P</span>
-              <span className="text-xs">商品图片待补充</span>
-            </div>
-          )}
-        </div>
+        <SafeProductImage confirmedProductName={listing.confirmedProductName} image={listing.image} />
 
         <div className="flex min-w-0 flex-1 flex-col pt-3" data-live-offer-body="true">
           <p className="line-clamp-3 min-h-[3.75rem] break-words text-sm font-semibold leading-5 text-slate-900 [overflow-wrap:anywhere]" title={listing.title}>{listing.title}</p>

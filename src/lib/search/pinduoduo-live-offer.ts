@@ -1,3 +1,4 @@
+import { selectLiveListingImage, type LiveListingImage } from "@/lib/images/live-listing-image";
 import type { PinduoduoGoods } from "@/lib/platforms/pinduoduo-client";
 import type { Product } from "@/types/catalog";
 import { classifyPinduoduoGoodsWithReason, pinduoduoTokens, scorePinduoduoRelevance, type PinduoduoClassificationReason } from "./pinduoduo-relevance";
@@ -10,7 +11,7 @@ export type LivePinduoduoOffer = ComparablePrice & {
   variantId: string | null;
   goodsId: string;
   title: string;
-  image: string | null;
+  image: LiveListingImage | null;
   merchant: string;
   merchantType: number | null;
   hasCoupon: boolean;
@@ -197,7 +198,12 @@ export function selectLivePinduoduoOffersWithDiagnostics(products: readonly Prod
       offers.push({
         productId: product.id, variantId,
         goodsId: item.goodsId, title: item.goodsName,
-        image: item.goodsImageUrl ?? item.goodsThumbnailUrl, merchant: item.mallName ?? "",
+        image: selectLiveListingImage({
+          platform: "pinduoduo",
+          externalProductId: item.goodsId,
+          confirmedProductName: product.name,
+          candidates: [item.goodsImageUrl, item.goodsThumbnailUrl],
+        }), merchant: item.mallName ?? "",
         merchantType: item.merchantType, ...prices, hasCoupon: item.hasCoupon,
         ...(nonNegative(item.couponPrice) ? { couponAmount: item.couponPrice } : {}),
         ...(nonNegative(item.couponMinOrderAmount) ? { couponMinOrderAmount: item.couponMinOrderAmount } : {}),

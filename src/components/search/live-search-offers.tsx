@@ -7,9 +7,11 @@ import { LiveTaobaoOffers } from "./live-taobao-offers";
 export function LiveSearchOffers({
   pinduoduoOffers,
   taobaoOffers,
+  productName,
 }: {
   pinduoduoOffers: readonly LivePinduoduoOffer[];
   taobaoOffers: readonly LiveTaobaoProductOffer[];
+  productName: string;
 }) {
   if (!pinduoduoOffers.length && !taobaoOffers.length) return null;
 
@@ -20,8 +22,8 @@ export function LiveSearchOffers({
         <p className="text-xs text-slate-500">独立商品级信息，仅供进一步核对</p>
       </div>
       <div className="grid min-w-0 gap-5">
-        <LivePinduoduoOffers offers={pinduoduoOffers} />
-        <LiveTaobaoOffers offers={taobaoOffers} />
+        <LivePinduoduoOffers offers={pinduoduoOffers} productName={productName} />
+        <LiveTaobaoOffers offers={taobaoOffers} productName={productName} />
       </div>
     </section>
   );

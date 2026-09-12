@@ -23,8 +23,8 @@ function offer(title: string, overrides: Partial<LiveTaobaoOffer> = {}): LiveTao
     categoryName: "手机",
     shopTitle: "小米授权店",
     sellerId: "seller-1",
-    pictUrl: "https://img.example.test/xiaomi-15.jpg",
-    smallImages: [],
+    pictUrl: "https://img.alicdn.com/xiaomi-15-main.jpg",
+    smallImages: ["https://img.alicdn.com/xiaomi-15-small.jpg"],
     reservePrice: 4999,
     salePrice: 4299,
     promotionPrice: 3999,
@@ -57,7 +57,14 @@ describe("live Taobao product offers", () => {
       salePrice: 4299,
       promotionPrice: 3999,
       variantId: null,
+      image: expect.objectContaining({
+        platform: "taobao",
+        externalProductId: "tb-live-1",
+        url: "https://img.alicdn.com/xiaomi-15-main.jpg",
+        alt: "小米 15",
+      }),
     })]);
+    expect(target.image).toBe("/phone-placeholder.svg");
   });
 
   it("does not publish iPhone 16 Pro Max for iPhone 16 Pro", async () => {

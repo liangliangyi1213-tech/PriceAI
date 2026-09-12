@@ -10,7 +10,7 @@ function liveOffer(overrides: Partial<LivePinduoduoOffer> = {}): LivePinduoduoOf
     variantId: null,
     goodsId: "live-1",
     title: "Apple iPhone 16 256GB",
-    image: "https://example.com/live-phone.jpg",
+    image: { platform: "pinduoduo", externalProductId: "live-1", url: "https://img.pddpic.com/live-phone.jpg", alt: "iPhone 16 Pro" },
     merchant: "品牌好店",
     merchantType: 1,
     hasCoupon: true,
@@ -31,15 +31,15 @@ function liveOffer(overrides: Partial<LivePinduoduoOffer> = {}): LivePinduoduoOf
 describe("search presentation", () => {
   it("presents only validated live image, sales, and coupon facts", () => {
     expect(presentation.livePinduoduoOfferFacts(liveOffer())).toEqual({
-      image: "https://example.com/live-phone.jpg",
+      image: { platform: "pinduoduo", externalProductId: "live-1", url: "https://img.pddpic.com/live-phone.jpg", alt: "iPhone 16 Pro" },
       salesLabel: "近2小时已拼100+件",
       couponLabels: ["有券", "券额 ¥200", "使用门槛 ¥1,000", "额外优惠 ¥50"],
     });
   });
 
-  it("omits absent live facts and rejects non-HTTPS images", () => {
+  it("omits absent live facts", () => {
     expect(presentation.livePinduoduoOfferFacts(liveOffer({
-      image: "http://example.com/unsafe.jpg",
+      image: null,
       hasCoupon: false,
       couponAmount: undefined,
       couponMinOrderAmount: undefined,
