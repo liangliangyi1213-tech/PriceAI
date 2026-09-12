@@ -59,3 +59,10 @@ export type ProductImagePrimaryEventRow = {
   new_image_id: string | null; action: "initial" | "replace" | "rollback" | "clear";
   reason: string; changed_by: string; created_at: string;
 };
+
+export type ProductImagePromotionRow = {
+  promoted_image_id: string;
+  replaced_image_id: string | null;
+  promotion_action: "initial" | "replace" | "rollback";
+  primary_event_id: string;
+};

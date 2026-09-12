@@ -12,6 +12,12 @@ import type {
   CreateCatalogImageCandidate,
   CreateCatalogImageCandidateResult,
 } from "./types";
+import type {
+  ApprovedCandidateInput,
+  CatalogImageReviewContext,
+  PrimaryPromotionResult,
+  PromotePrimaryInput,
+} from "./review-service";
 
 const allowedEvidenceMatchers = new Set([
   "taobao_phone_strict", "pinduoduo_phone_strict", "catalog_sync_deterministic",
@@ -127,6 +133,126 @@ export class SupabaseCatalogImageRepository {
       const image = mapProductImageRow(data as ProductImageRow);
       if (!image) throw new CatalogImageRepositoryError();
       return { status: "created", imageId: image.id };
+    } catch (error) {
+      if (error instanceof CatalogImageRepositoryError) throw error;
+      throw new CatalogImageRepositoryError();
+    }
+  }
+
+  async getReviewContext(imageId: string): Promise<CatalogImageReviewContext | null> {
+    try {
+      const client = getCatalogSyncWriteClient();
+      const { data, error } = await client
+        .from("product_images")
+        .select("*")
+        .eq("id", imageId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      const image = mapProductImageRow(data as ProductImageRow);
+      if (!image) throw new CatalogImageRepositoryError();
+
+      const { data: product, error: productError } = await client
+        .from("products")
+        .select("id")
+        .eq("id", image.productId)
+        .maybeSingle();
+      if (productError) throw productError;
+
+      let variantBelongsToProduct = image.targetType === "product";
+      if (image.targetType === "variant" && image.variantId) {
+        const { data: variant, error: variantError } = await client
+          .from("product_variants")
+          .select("id, product_id")
+          .eq("id", image.variantId)
+          .eq("product_id", image.productId)
+          .maybeSingle();
+        if (variantError) throw variantError;
+        variantBelongsToProduct = Boolean(variant);
+      }
+
+      return {
+        image,
+        productExists: Boolean(product),
+        variantBelongsToProduct,
+      };
+    } catch (error) {
+      if (error instanceof CatalogImageRepositoryError) throw error;
+      throw new CatalogImageRepositoryError();
+    }
+  }
+
+  async approveCandidate(input: ApprovedCandidateInput): Promise<CatalogImage> {
+    try {
+      const { data, error } = await getCatalogSyncWriteClient()
+        .from("product_images")
+        .update({
+          status: "approved",
+          verified_at: input.verifiedAt,
+          verified_by: input.reviewer,
+          verification_method: input.reviewMethod,
+          match_confidence: input.matchConfidence,
+          match_evidence: input.matchEvidence,
+          rejection_reason: null,
+          unavailable_reason: null,
+        })
+        .eq("id", input.imageId)
+        .eq("status", "candidate")
+        .select("*")
+        .maybeSingle();
+      if (error || !data) throw error ?? new CatalogImageRepositoryError();
+      const image = mapProductImageRow(data as ProductImageRow);
+      if (!image || image.status !== "approved") throw new CatalogImageRepositoryError();
+      return image;
+    } catch (error) {
+      if (error instanceof CatalogImageRepositoryError) throw error;
+      throw new CatalogImageRepositoryError();
+    }
+  }
+
+  async rejectCandidate(input: { imageId: string; reason: string }): Promise<void> {
+    try {
+      const { data, error } = await getCatalogSyncWriteClient()
+        .from("product_images")
+        .update({ status: "rejected", rejection_reason: input.reason })
+        .eq("id", input.imageId)
+        .eq("status", "candidate")
+        .select("id")
+        .maybeSingle();
+      if (error || !data) throw error ?? new CatalogImageRepositoryError();
+    } catch (error) {
+      if (error instanceof CatalogImageRepositoryError) throw error;
+      throw new CatalogImageRepositoryError();
+    }
+  }
+
+  async promotePrimary(input: PromotePrimaryInput): Promise<PrimaryPromotionResult> {
+    try {
+      const { data, error } = await getCatalogSyncWriteClient().rpc(
+        "promote_product_image_primary",
+        {
+          p_image_id: input.imageId,
+          p_action: input.action,
+          p_reason: input.reason,
+          p_changed_by: input.reviewer,
+        },
+      );
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row || typeof row !== "object") throw new CatalogImageRepositoryError();
+      const result = row as Record<string, unknown>;
+      if (typeof result.promoted_image_id !== "string"
+        || (result.replaced_image_id !== null && typeof result.replaced_image_id !== "string")
+        || result.promotion_action !== input.action
+        || typeof result.primary_event_id !== "string") {
+        throw new CatalogImageRepositoryError();
+      }
+      return {
+        imageId: result.promoted_image_id,
+        previousImageId: result.replaced_image_id as string | null,
+        action: input.action,
+        eventId: result.primary_event_id,
+      };
     } catch (error) {
       if (error instanceof CatalogImageRepositoryError) throw error;
       throw new CatalogImageRepositoryError();
