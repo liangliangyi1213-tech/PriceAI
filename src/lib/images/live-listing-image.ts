@@ -13,6 +13,8 @@ const allowedImageHosts: Readonly<Record<LiveImagePlatform, ReadonlySet<string>>
   pinduoduo: new Set(["img.pddpic.com", "funimg.pddpic.com"]),
 };
 
+export type ProviderImageSource = Readonly<{ kind: string; url: string }>;
+
 function safeProviderImageUrl(platform: LiveImagePlatform, value: string | null | undefined): string | null {
   if (!value) return null;
   try {
@@ -22,6 +24,19 @@ function safeProviderImageUrl(platform: LiveImagePlatform, value: string | null 
   } catch {
     return null;
   }
+}
+
+/** Selects the first safe provider-owned URL while retaining its source field. */
+export function selectProviderImageSource(
+  platform: LiveImagePlatform,
+  candidates: readonly Readonly<{ kind: string; url: string | null | undefined }>[],
+): ProviderImageSource | null {
+  for (const candidate of candidates) {
+    const kind = candidate.kind.trim();
+    const url = safeProviderImageUrl(platform, candidate.url);
+    if (kind && url) return { kind, url };
+  }
+  return null;
 }
 
 export function selectLiveListingImage({
@@ -38,11 +53,8 @@ export function selectLiveListingImage({
   const listingId = externalProductId.trim();
   const alt = confirmedProductName.trim();
   if (!listingId || !alt) return null;
-  for (const candidate of candidates) {
-    const url = safeProviderImageUrl(platform, candidate);
-    if (url) return { platform, externalProductId: listingId, url, alt };
-  }
-  return null;
+  const source = selectProviderImageSource(platform, candidates.map((url) => ({ kind: "listing_image", url })));
+  return source ? { platform, externalProductId: listingId, url: source.url, alt } : null;
 }
 
 export function liveListingImageIdentity(image: LiveListingImage): string {

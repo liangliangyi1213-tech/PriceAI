@@ -10,7 +10,15 @@ import type {
   AppendPrimaryImageEvent,
   CatalogImage,
   CreateCatalogImageCandidate,
+  CreateCatalogImageCandidateResult,
 } from "./types";
+
+const allowedEvidenceMatchers = new Set([
+  "taobao_phone_strict", "pinduoduo_phone_strict", "catalog_sync_deterministic",
+]);
+const allowedEvidenceSignals = new Set([
+  "brand", "model", "category", "storage", "color", "region", "condition",
+]);
 
 export class CatalogImageRepositoryError extends Error {
   constructor() {
@@ -32,22 +40,40 @@ function candidateRow(input: CreateCatalogImageCandidate) {
   if ((input.targetType === "product") !== (input.variantId === null)) {
     throw new CatalogImageRepositoryError();
   }
+  if (!input.productId.trim() || !input.platform.trim() || !input.externalProductId.trim()
+    || !input.sourceKind.trim() || !Number.isFinite(input.matchConfidence)
+    || input.matchConfidence < 0 || input.matchConfidence > 1
+    || input.matchEvidence.matchLevel !== input.targetType
+    || input.matchEvidence.schemaVersion !== 1
+    || !allowedEvidenceMatchers.has(input.matchEvidence.matcher)
+    || input.matchEvidence.signals.length === 0
+    || input.matchEvidence.signals.some((signal) => !allowedEvidenceSignals.has(signal))) {
+    throw new CatalogImageRepositoryError();
+  }
   const sourceUrl = source.href;
   return {
-    product_id: input.productId,
+    product_id: input.productId.trim(),
     variant_id: input.variantId,
     target_type: input.targetType,
     role: "gallery" as const,
     status: "candidate" as const,
     is_primary: false,
-    platform: input.platform,
-    external_product_id: input.externalProductId,
-    external_variant_id: input.externalVariantId,
-    source_kind: input.sourceKind,
+    platform: input.platform.trim(),
+    external_product_id: input.externalProductId.trim(),
+    external_variant_id: input.externalVariantId?.trim() || null,
+    source_kind: input.sourceKind.trim(),
     source_url: sourceUrl,
     source_host: source.hostname.toLowerCase(),
     source_url_hash: createHash("sha256").update(sourceUrl).digest("hex"),
+    match_confidence: input.matchConfidence,
+    match_evidence: input.matchEvidence,
+    verified_at: null,
   };
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error
+    && (error as { code?: unknown }).code === "23505";
 }
 
 export class SupabaseCatalogImageRepository {
@@ -68,17 +94,39 @@ export class SupabaseCatalogImageRepository {
     }
   }
 
-  async createCandidate(input: CreateCatalogImageCandidate): Promise<CatalogImage> {
+  async createCandidateIfAbsent(input: CreateCatalogImageCandidate): Promise<CreateCatalogImageCandidateResult> {
+    const row = candidateRow(input);
     try {
-      const { data, error } = await getCatalogSyncWriteClient()
+      const client = getCatalogSyncWriteClient();
+      const { data, error } = await client
         .from("product_images")
-        .insert(candidateRow(input))
+        .insert(row)
         .select("*")
         .single();
-      if (error) throw error;
+      if (error && !isUniqueViolation(error)) throw error;
+      if (isUniqueViolation(error)) {
+        let duplicateQuery = client
+          .from("product_images")
+          .select("*")
+          .eq("platform", row.platform)
+          .eq("external_product_id", row.external_product_id)
+          .eq("source_url_hash", row.source_url_hash)
+          .in("status", ["candidate", "approved"]);
+        duplicateQuery = row.external_variant_id === null
+          ? duplicateQuery.is("external_variant_id", null)
+          : duplicateQuery.eq("external_variant_id", row.external_variant_id);
+        const { data: existingData, error: lookupError } = await duplicateQuery.maybeSingle();
+        if (lookupError) throw lookupError;
+        const existing = existingData ? mapProductImageRow(existingData as ProductImageRow) : null;
+        if (!existing || existing.productId !== row.product_id || existing.variantId !== row.variant_id
+          || existing.targetType !== row.target_type) {
+          throw new CatalogImageRepositoryError();
+        }
+        return { status: "duplicate", imageId: existing.id };
+      }
       const image = mapProductImageRow(data as ProductImageRow);
       if (!image) throw new CatalogImageRepositoryError();
-      return image;
+      return { status: "created", imageId: image.id };
     } catch (error) {
       if (error instanceof CatalogImageRepositoryError) throw error;
       throw new CatalogImageRepositoryError();

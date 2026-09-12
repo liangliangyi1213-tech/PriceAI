@@ -1,6 +1,18 @@
 export type CatalogImageTargetType = "product" | "variant";
 export type CatalogImageRole = "primary" | "gallery";
 export type CatalogImageStatus = "candidate" | "approved" | "rejected" | "unavailable";
+export type CatalogImageMatchSignal =
+  | "brand"
+  | "model"
+  | "category"
+  | "storage"
+  | "color"
+  | "region"
+  | "condition";
+export type CatalogImageMatcher =
+  | "taobao_phone_strict"
+  | "pinduoduo_phone_strict"
+  | "catalog_sync_deterministic";
 
 export type CatalogImage = Readonly<{
   id: string;
@@ -16,6 +28,8 @@ export type CatalogImage = Readonly<{
   sourceUrl: string;
   sourceHost: string;
   sourceUrlHash: string;
+  matchConfidence: number | null;
+  matchEvidence: Record<string, unknown> | null;
   contentHash: string | null;
   storageBucket: string | null;
   storageObjectPath: string | null;
@@ -43,6 +57,18 @@ export type CreateCatalogImageCandidate = Readonly<{
   externalVariantId: string | null;
   sourceKind: string;
   sourceUrl: string;
+  matchConfidence: number;
+  matchEvidence: Readonly<{
+    schemaVersion: 1;
+    matcher: CatalogImageMatcher;
+    matchLevel: CatalogImageTargetType;
+    signals: readonly CatalogImageMatchSignal[];
+  }>;
+}>;
+
+export type CreateCatalogImageCandidateResult = Readonly<{
+  status: "created" | "duplicate";
+  imageId: string;
 }>;
 
 export type AppendPrimaryImageEvent = Readonly<{

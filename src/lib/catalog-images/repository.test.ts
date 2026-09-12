@@ -52,7 +52,7 @@ describe("SupabaseCatalogImageRepository", () => {
     const insert = vi.fn(() => ({ select: selectAfterInsert }));
     mocks.getCatalogSyncWriteClient.mockReturnValue({ from: vi.fn(() => ({ insert })) });
 
-    await new SupabaseCatalogImageRepository().createCandidate({
+    await new SupabaseCatalogImageRepository().createCandidateIfAbsent({
       productId: "product-1",
       variantId: null,
       targetType: "product",
@@ -61,14 +61,73 @@ describe("SupabaseCatalogImageRepository", () => {
       externalVariantId: null,
       sourceKind: "pict_url",
       sourceUrl: "https://img.alicdn.com/product.jpg",
+      matchConfidence: 0.98,
+      matchEvidence: { schemaVersion: 1, matcher: "taobao_phone_strict", matchLevel: "product", signals: ["brand", "model"] },
     });
 
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({
       status: "candidate",
       role: "gallery",
       is_primary: false,
+      match_confidence: 0.98,
+      match_evidence: { schemaVersion: 1, matcher: "taobao_phone_strict", matchLevel: "product", signals: ["brand", "model"] },
+      verified_at: null,
       source_url_hash: createHash("sha256").update("https://img.alicdn.com/product.jpg").digest("hex"),
     }));
+  });
+
+  it("treats a duplicate active source bound to the same target as idempotent", async () => {
+    const duplicateError = { code: "23505", message: "duplicate key value" };
+    const single = vi.fn().mockResolvedValue({ data: null, error: duplicateError });
+    const insert = vi.fn(() => ({ select: vi.fn(() => ({ single })) }));
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: { ...approvedRow, status: "candidate", role: "gallery", is_primary: false, verified_at: null },
+      error: null,
+    });
+    const isExternalVariant = vi.fn(() => ({ maybeSingle }));
+    const inStatus = vi.fn(() => ({ is: isExternalVariant }));
+    const eqHash = vi.fn(() => ({ in: inStatus }));
+    const eqExternalProduct = vi.fn(() => ({ eq: eqHash }));
+    const eqPlatform = vi.fn(() => ({ eq: eqExternalProduct }));
+    const select = vi.fn(() => ({ eq: eqPlatform }));
+    mocks.getCatalogSyncWriteClient.mockReturnValue({ from: vi.fn(() => ({ insert, select })) });
+
+    await expect(new SupabaseCatalogImageRepository().createCandidateIfAbsent({
+      productId: "product-1", variantId: null, targetType: "product",
+      platform: "taobao", externalProductId: "tb-1", externalVariantId: null,
+      sourceKind: "pict_url", sourceUrl: "https://img.alicdn.com/product.jpg",
+      matchConfidence: 0.98,
+      matchEvidence: { schemaVersion: 1, matcher: "taobao_phone_strict", matchLevel: "product", signals: ["brand", "model"] },
+    })).resolves.toEqual({ status: "duplicate", imageId: "image-1" });
+    expect(isExternalVariant).toHaveBeenCalledWith("external_variant_id", null);
+  });
+
+  it("rejects a duplicate source that is already bound to another Catalog target", async () => {
+    const duplicateError = { code: "23505", message: "duplicate key value" };
+    const single = vi.fn().mockResolvedValue({ data: null, error: duplicateError });
+    const insert = vi.fn(() => ({ select: vi.fn(() => ({ single })) }));
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: { ...approvedRow, product_id: "another-product", status: "candidate", role: "gallery", is_primary: false, verified_at: null },
+      error: null,
+    });
+    const select = vi.fn(() => ({
+      eq: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            in: vi.fn(() => ({ is: vi.fn(() => ({ maybeSingle })) })),
+          })),
+        })),
+      })),
+    }));
+    mocks.getCatalogSyncWriteClient.mockReturnValue({ from: vi.fn(() => ({ insert, select })) });
+
+    await expect(new SupabaseCatalogImageRepository().createCandidateIfAbsent({
+      productId: "product-1", variantId: null, targetType: "product",
+      platform: "taobao", externalProductId: "tb-1", externalVariantId: null,
+      sourceKind: "pict_url", sourceUrl: "https://img.alicdn.com/product.jpg",
+      matchConfidence: 0.98,
+      matchEvidence: { schemaVersion: 1, matcher: "taobao_phone_strict", matchLevel: "product", signals: ["brand", "model"] },
+    })).rejects.toEqual(new CatalogImageRepositoryError());
   });
 
   it("only appends primary events and exposes no update or delete method", async () => {

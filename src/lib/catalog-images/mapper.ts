@@ -10,6 +10,10 @@ export function mapProductImageRow(row: ProductImageRow): CatalogImage | null {
     ? row.is_primary && row.status === "approved"
     : !row.is_primary;
   if (!targetIsValid || !primaryIsValid) return null;
+  const matchEvidence = typeof row.match_evidence === "object" && row.match_evidence !== null
+    && !Array.isArray(row.match_evidence)
+    ? row.match_evidence as Record<string, unknown>
+    : null;
 
   return {
     id: row.id,
@@ -25,6 +29,8 @@ export function mapProductImageRow(row: ProductImageRow): CatalogImage | null {
     sourceUrl: row.source_url,
     sourceHost: row.source_host,
     sourceUrlHash: row.source_url_hash,
+    matchConfidence: row.match_confidence,
+    matchEvidence,
     contentHash: row.content_hash,
     storageBucket: row.storage_bucket,
     storageObjectPath: row.storage_object_path,

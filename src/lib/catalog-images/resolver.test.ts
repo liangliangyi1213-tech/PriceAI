@@ -18,6 +18,8 @@ function image(overrides: Partial<CatalogImage> = {}): CatalogImage {
     sourceUrl: "https://img.alicdn.com/product.jpg",
     sourceHost: "img.alicdn.com",
     sourceUrlHash: "a".repeat(64),
+    matchConfidence: 0.98,
+    matchEvidence: { method: "manual" },
     contentHash: null,
     storageBucket: null,
     storageObjectPath: null,
