@@ -94,6 +94,41 @@ describe("SupabaseCatalogImageRepository", () => {
     }));
   });
 
+  it("counts only active Candidates for one Product and platform", async () => {
+    const eqStatus = vi.fn().mockResolvedValue({ count: 3, error: null });
+    const eqPlatform = vi.fn(() => ({ eq: eqStatus }));
+    const eqProduct = vi.fn(() => ({ eq: eqPlatform }));
+    const select = vi.fn(() => ({ eq: eqProduct }));
+    mocks.getCatalogSyncWriteClient.mockReturnValue({ from: vi.fn(() => ({ select })) });
+
+    await expect(new SupabaseCatalogImageRepository().countActiveCandidates("product-1", "taobao"))
+      .resolves.toBe(3);
+    expect(select).toHaveBeenCalledWith("id", { count: "exact", head: true });
+    expect(eqProduct).toHaveBeenCalledWith("product_id", "product-1");
+    expect(eqPlatform).toHaveBeenCalledWith("platform", "taobao");
+    expect(eqStatus).toHaveBeenCalledWith("status", "candidate");
+  });
+
+  it("reads only active Candidates for one Product and platform without mutation", async () => {
+    const eqStatus = vi.fn().mockResolvedValue({
+      data: [{ ...approvedRow, status: "candidate", role: "gallery", is_primary: false, verified_at: null }],
+      error: null,
+    });
+    const eqPlatform = vi.fn(() => ({ eq: eqStatus }));
+    const eqProduct = vi.fn(() => ({ eq: eqPlatform }));
+    const select = vi.fn(() => ({ eq: eqProduct }));
+    const from = vi.fn(() => ({ select }));
+    mocks.getCatalogSyncWriteClient.mockReturnValue({ from });
+
+    await expect(new SupabaseCatalogImageRepository().getActiveCandidates("product-1", "taobao"))
+      .resolves.toHaveLength(1);
+    expect(select).toHaveBeenCalledWith("*");
+    expect(eqProduct).toHaveBeenCalledWith("product_id", "product-1");
+    expect(eqPlatform).toHaveBeenCalledWith("platform", "taobao");
+    expect(eqStatus).toHaveBeenCalledWith("status", "candidate");
+    expect(from).toHaveBeenCalledTimes(1);
+  });
+
   it("treats a duplicate active source bound to the same target as idempotent", async () => {
     const duplicateError = { code: "23505", message: "duplicate key value" };
     const single = vi.fn().mockResolvedValue({ data: null, error: duplicateError });

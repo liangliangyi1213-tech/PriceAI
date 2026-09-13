@@ -58,7 +58,7 @@ export type PromotePrimaryInput = Readonly<{
 export interface CatalogImageReviewRepository {
   getReviewContext(imageId: string): Promise<CatalogImageReviewContext | null>;
   approveCandidate(input: ApprovedCandidateInput): Promise<CatalogImage>;
-  rejectCandidate(input: { imageId: string; reason: string }): Promise<void>;
+  rejectCandidate(input: { imageId: string; reason: string }): Promise<boolean>;
   promotePrimary(input: PromotePrimaryInput): Promise<PrimaryPromotionResult>;
 }
 
@@ -147,7 +147,8 @@ export async function approveCatalogImageCandidate(
   if (context.image.status !== "candidate") throw new CatalogImageReviewError("not_candidate");
   const failure = validateCandidate(context);
   if (failure) {
-    await repository.rejectCandidate({ imageId: context.image.id, reason: failure });
+    const rejected = await repository.rejectCandidate({ imageId: context.image.id, reason: failure });
+    if (!rejected) throw new CatalogImageReviewError("not_candidate");
     return { status: "rejected", reason: failure };
   }
   const matchConfidence = context.image.matchConfidence;
@@ -175,10 +176,11 @@ export async function rejectCatalogImageCandidate(
   const context = await repository.getReviewContext(input.imageId.trim());
   if (!context) throw new CatalogImageReviewError("not_found");
   if (context.image.status !== "candidate") throw new CatalogImageReviewError("not_candidate");
-  await repository.rejectCandidate({
+  const rejected = await repository.rejectCandidate({
     imageId: context.image.id,
     reason: input.reason.trim(),
   });
+  if (!rejected) throw new CatalogImageReviewError("not_candidate");
 }
 
 export async function promoteCatalogImagePrimary(

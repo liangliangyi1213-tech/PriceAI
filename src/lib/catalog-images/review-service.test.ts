@@ -78,11 +78,11 @@ describe("catalog image review service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getReviewContext.mockResolvedValue(context());
+    rejectCandidate.mockResolvedValue(true);
     approveCandidate.mockResolvedValue(image({
       status: "approved",
       verifiedAt: "2026-09-12T08:00:00.000Z",
     }));
-    rejectCandidate.mockResolvedValue(undefined);
     promotePrimary.mockResolvedValue({
       imageId: "image-1",
       previousImageId: null,
@@ -166,6 +166,16 @@ describe("catalog image review service", () => {
       reason: "wrong product identity",
     }, repository)).resolves.toBeUndefined();
     expect(rejectCandidate).toHaveBeenCalledWith({ imageId: "image-1", reason: "wrong product identity" });
+  });
+
+  it("reports a Candidate changed after context loading as no longer reviewable", async () => {
+    rejectCandidate.mockResolvedValue(false);
+
+    await expect(rejectCatalogImageCandidate({
+      imageId: "image-1",
+      reviewer: "catalog-reviewer",
+      reason: "capacity policy",
+    }, repository)).rejects.toEqual(new CatalogImageReviewError("not_candidate"));
   });
 
   it("does not manually reject a non-candidate or accept an empty reason", async () => {

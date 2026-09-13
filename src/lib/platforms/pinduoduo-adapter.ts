@@ -3,6 +3,8 @@ import "server-only";
 import { PlatformAuthError, PlatformUnavailableError, toSafePlatformError } from "./errors";
 import type { PinduoduoClient, PinduoduoRecommendedGoods } from "./pinduoduo-client";
 import type { PlatformAdapter, PlatformSearchOptions, PlatformSearchResult } from "./types";
+import { selectLivePinduoduoOffersWithDiagnostics } from "@/lib/search/pinduoduo-live-offer";
+import type { Product } from "@/types/catalog";
 
 type RecommendationSource = {
   getRecommendedProducts(options?: PlatformSearchOptions): Promise<PlatformSearchResult[]>;
@@ -42,6 +44,11 @@ export function mapPinduoduoGoods(goods: PinduoduoRecommendedGoods): PlatformSea
   };
 }
 
+export type PinduoduoPhoneImageCandidateResult = Readonly<{
+  listing: import("./pinduoduo-client").PinduoduoGoods;
+  product: Product;
+}>;
+
 export class PinduoduoAdapter implements PlatformAdapter {
   readonly id = "pdd" as const;
 
@@ -66,6 +73,42 @@ export class PinduoduoAdapter implements PlatformAdapter {
     try {
       const response = await this.options.client.searchGoods(query, { limit, page });
       return response.goods.map(mapPinduoduoGoods);
+    } catch (error) {
+      throw toSafePlatformError("pdd", error);
+    }
+  }
+
+  /**
+   * Uses the existing strict whole-product selector for image discovery.
+   * This intentionally never claims a Variant: current PDD responses do not
+   * provide independently verified structured SKU evidence.
+   */
+  async searchPhoneImageCandidatesForProduct(
+    product: Product,
+    options: PlatformSearchOptions = {},
+    requestOptions: { signal?: AbortSignal } = {},
+  ): Promise<PinduoduoPhoneImageCandidateResult[]> {
+    if (!this.options.client) throw new PlatformAuthError("pdd");
+    if (!this.options.client.searchGoods) throw new PlatformUnavailableError("pdd");
+    const limit = typeof options.limit === "number" && Number.isFinite(options.limit)
+      ? Math.max(1, Math.floor(options.limit))
+      : 3;
+    try {
+      const searchOptions = { limit: Math.max(20, limit), page: 1 };
+      const response = requestOptions.signal
+        ? await this.options.client.searchGoods(product.name, searchOptions, requestOptions)
+        : await this.options.client.searchGoods(product.name, searchOptions);
+      const selected = selectLivePinduoduoOffersWithDiagnostics(
+        [product],
+        product.name,
+        response.goods,
+        limit,
+      ).offers.get(product.id) ?? [];
+      const byId = new Map(response.goods.map((listing) => [listing.goodsId, listing]));
+      return selected.flatMap((offer) => {
+        const listing = byId.get(offer.goodsId);
+        return listing ? [{ listing, product }] : [];
+      });
     } catch (error) {
       throw toSafePlatformError("pdd", error);
     }

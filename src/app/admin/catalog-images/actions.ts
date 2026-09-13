@@ -14,6 +14,9 @@ import {
   verifyCatalogImageAdminSecret,
 } from "@/lib/admin/catalog-image-auth";
 import { executeCatalogImageAdminOperation, type CatalogImageAdminOperation } from "@/lib/catalog-images/admin-service";
+import { executeCatalogImageDiscoveryAdminOperation } from "@/lib/catalog-images/discovery-admin-service";
+import type { CatalogImageDiscoveryReport } from "@/lib/catalog-images/discovery-service";
+import { cleanupCatalogImageCandidateOverCap } from "@/lib/catalog-images/over-cap-cleanup-service";
 
 const WORKBENCH_PATH = "/admin/catalog-images";
 const REVIEWER = "priceai-admin-workbench";
@@ -75,4 +78,59 @@ export async function rejectCatalogImageAction(formData: FormData): Promise<neve
     imageId: String(formData.get("imageId") ?? ""),
     reason: String(formData.get("reason") ?? ""),
   });
+}
+
+function discoveryResultLocation(report: CatalogImageDiscoveryReport): string {
+  const params = new URLSearchParams({
+    discovery: "success",
+    created: String(report.summary.created),
+    duplicate: String(report.summary.duplicate),
+    skipped: String(report.summary.skipped),
+    rejected: String(report.summary.rejected),
+    failed: String(report.summary.failed),
+    refs: report.products.map((product) => product.productRef).join(","),
+  });
+  return `${WORKBENCH_PATH}?${params.toString()}`;
+}
+
+export async function discoverCatalogImagesAction(formData: FormData): Promise<never> {
+  let location = `${WORKBENCH_PATH}?discovery=failed`;
+  try {
+    const mode = formData.get("mode") === "batch" ? "batch" : "single";
+    const productIds = formData.getAll("productId").map(String);
+    const report = await executeCatalogImageDiscoveryAdminOperation({
+      authorized: await getCatalogImageAdminAccess() === "authorized",
+      sameOrigin: await sameOrigin(),
+      input: { mode, productIds },
+    });
+    revalidatePath(WORKBENCH_PATH);
+    location = discoveryResultLocation(report);
+  } catch {}
+  redirect(location);
+}
+
+export async function cleanupCatalogImagesOverCapAction(
+  productId: string,
+  platform: string,
+  formData: FormData,
+): Promise<never> {
+  let location = `${WORKBENCH_PATH}?cleanup=failed`;
+  try {
+    const result = await cleanupCatalogImageCandidateOverCap({
+      authorized: await getCatalogImageAdminAccess() === "authorized",
+      sameOrigin: await sameOrigin(),
+      confirmed: formData.get("confirmed") === "yes",
+      reviewer: REVIEWER,
+      productId,
+      platform,
+    });
+    revalidatePath(WORKBENCH_PATH);
+    const params = new URLSearchParams({
+      cleanup: "success",
+      processed: String(result.processed),
+      active: String(result.activeAfter),
+    });
+    location = `${WORKBENCH_PATH}?${params.toString()}`;
+  } catch {}
+  redirect(location);
 }

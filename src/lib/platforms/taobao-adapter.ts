@@ -84,14 +84,23 @@ export class TaobaoAdapter implements PlatformAdapter {
   }
 
   /** Searches using the PriceAI Product name and returns only strict product-level match outcomes. */
-  async searchPhoneOffersForProduct(product: Product, options: PlatformSearchOptions = {}): Promise<TaobaoPhoneOfferResult[]> {
+  async searchPhoneOffersForProduct(
+    product: Product,
+    options: PlatformSearchOptions = {},
+    requestOptions: { signal?: AbortSignal } = {},
+  ): Promise<TaobaoPhoneOfferResult[]> {
     if (!this.options.client) throw new PlatformAuthError("taobao");
     try {
-      const response = await this.options.client.searchPhoneGoods(createTaobaoPhoneSearchKeyword(product), {
+      const searchOptions = {
         limit: boundedInteger(options.limit, 20),
         page: boundedInteger(options.page, 1),
         startPrice: options.minPrice,
-      });
+      };
+      const response = requestOptions.signal
+        ? await this.options.client.searchPhoneGoods(
+          createTaobaoPhoneSearchKeyword(product), searchOptions, requestOptions,
+        )
+        : await this.options.client.searchPhoneGoods(createTaobaoPhoneSearchKeyword(product), searchOptions);
       return response.items.map((offer) => ({ offer, match: matchTaobaoPhoneOffer(offer, product) }));
     } catch (error) {
       throw toSafePlatformError("taobao", error);

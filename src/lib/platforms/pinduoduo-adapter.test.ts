@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 
 import { MockPlatformAdapter } from "./mock-platform-adapter";
 import { PinduoduoAdapter, mapPinduoduoGoods } from "./pinduoduo-adapter";
+import { phones } from "@/data/phones";
 
 const goods = {
   goodsId: "123456789",
@@ -97,5 +98,44 @@ describe("PinduoduoAdapter", () => {
       name: "PlatformAuthError",
       platform: "pdd",
     });
+  });
+
+  it("discovers strict whole-phone image candidates without claiming a title-derived Variant", async () => {
+    const product = phones.find((item) => item.slug === "xiaomi-15")!;
+    const listing = {
+      ...goods,
+      goodsId: "pdd-xiaomi-15",
+      goodsName: "小米15 12GB 256GB 黑色 国行手机",
+      goodsImageUrl: "https://img.pddpic.com/xiaomi-15.jpg",
+      goodsThumbnailUrl: "https://img.pddpic.com/xiaomi-15-thumb.jpg",
+      fetchedAt: new Date("2026-09-13T00:00:00.000Z"),
+    };
+    const client = {
+      searchGoods: vi.fn().mockResolvedValue({ total: 1, goods: [listing] }),
+      getRecommendedGoods: vi.fn(),
+    };
+    const adapter = new PinduoduoAdapter({ client });
+
+    const results = await adapter.searchPhoneImageCandidatesForProduct(product, { limit: 3 });
+
+    expect(results).toEqual([{ listing, product }]);
+    expect(results[0]).not.toHaveProperty("variant");
+    expect(client.searchGoods).toHaveBeenCalledWith(product.name, { limit: 20, page: 1 });
+  });
+
+  it("does not return accessories or conflicting phone models as image candidates", async () => {
+    const product = phones.find((item) => item.slug === "apple-iphone-16-pro")!;
+    const listings = [
+      { ...goods, goodsId: "case", goodsName: "iPhone 16 Pro 手机壳", fetchedAt: new Date() },
+      { ...goods, goodsId: "max", goodsName: "Apple iPhone 16 Pro Max 全新手机", fetchedAt: new Date() },
+    ];
+    const client = {
+      searchGoods: vi.fn().mockResolvedValue({ total: 2, goods: listings }),
+      getRecommendedGoods: vi.fn(),
+    };
+
+    await expect(new PinduoduoAdapter({ client })
+      .searchPhoneImageCandidatesForProduct(product, { limit: 3 }))
+      .resolves.toEqual([]);
   });
 });

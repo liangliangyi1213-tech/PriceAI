@@ -79,8 +79,21 @@ describe("catalog image review repository", () => {
     const update = vi.fn(() => ({ eq: eqId }));
     mocks.getCatalogSyncWriteClient.mockReturnValue({ from: vi.fn(() => ({ update })) });
 
-    await new SupabaseCatalogImageRepository().rejectCandidate({ imageId: "image-1", reason: "source_not_allowed" });
+    await expect(new SupabaseCatalogImageRepository().rejectCandidate({ imageId: "image-1", reason: "source_not_allowed" }))
+      .resolves.toBe(true);
     expect(update).toHaveBeenCalledWith({ status: "rejected", rejection_reason: "source_not_allowed" });
+    expect(eqStatus).toHaveBeenCalledWith("status", "candidate");
+  });
+
+  it("reports a concurrent status change without overwriting the newer state", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    const eqStatus = vi.fn(() => ({ select: vi.fn(() => ({ maybeSingle })) }));
+    const eqId = vi.fn(() => ({ eq: eqStatus }));
+    const update = vi.fn(() => ({ eq: eqId }));
+    mocks.getCatalogSyncWriteClient.mockReturnValue({ from: vi.fn(() => ({ update })) });
+
+    await expect(new SupabaseCatalogImageRepository().rejectCandidate({ imageId: "image-1", reason: "capacity policy" }))
+      .resolves.toBe(false);
     expect(eqStatus).toHaveBeenCalledWith("status", "candidate");
   });
 

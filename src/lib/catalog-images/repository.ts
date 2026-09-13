@@ -83,6 +83,46 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 export class SupabaseCatalogImageRepository {
+  async getActiveCandidates(productId: string, platform: string): Promise<CatalogImage[]> {
+    const normalizedProductId = productId.trim();
+    const normalizedPlatform = platform.trim();
+    if (!normalizedProductId || !normalizedPlatform) throw new CatalogImageRepositoryError();
+    try {
+      const { data, error } = await getCatalogSyncWriteClient()
+        .from("product_images")
+        .select("*")
+        .eq("product_id", normalizedProductId)
+        .eq("platform", normalizedPlatform)
+        .eq("status", "candidate");
+      if (error) throw error;
+      return ((data ?? []) as ProductImageRow[])
+        .map(mapProductImageRow)
+        .filter((image): image is CatalogImage => image !== null && image.status === "candidate");
+    } catch (error) {
+      if (error instanceof CatalogImageRepositoryError) throw error;
+      throw new CatalogImageRepositoryError();
+    }
+  }
+
+  async countActiveCandidates(productId: string, platform: string): Promise<number> {
+    const normalizedProductId = productId.trim();
+    const normalizedPlatform = platform.trim();
+    if (!normalizedProductId || !normalizedPlatform) throw new CatalogImageRepositoryError();
+    try {
+      const { count, error } = await getCatalogSyncWriteClient()
+        .from("product_images")
+        .select("id", { count: "exact", head: true })
+        .eq("product_id", normalizedProductId)
+        .eq("platform", normalizedPlatform)
+        .eq("status", "candidate");
+      if (error || count === null) throw error ?? new CatalogImageRepositoryError();
+      return count;
+    } catch (error) {
+      if (error instanceof CatalogImageRepositoryError) throw error;
+      throw new CatalogImageRepositoryError();
+    }
+  }
+
   async getApprovedPrimaries(productId: string): Promise<CatalogImage[]> {
     return this.getApprovedPrimariesForProducts([productId]);
   }
@@ -217,7 +257,7 @@ export class SupabaseCatalogImageRepository {
     }
   }
 
-  async rejectCandidate(input: { imageId: string; reason: string }): Promise<void> {
+  async rejectCandidate(input: { imageId: string; reason: string }): Promise<boolean> {
     try {
       const { data, error } = await getCatalogSyncWriteClient()
         .from("product_images")
@@ -226,7 +266,8 @@ export class SupabaseCatalogImageRepository {
         .eq("status", "candidate")
         .select("id")
         .maybeSingle();
-      if (error || !data) throw error ?? new CatalogImageRepositoryError();
+      if (error) throw error;
+      return Boolean(data);
     } catch (error) {
       if (error instanceof CatalogImageRepositoryError) throw error;
       throw new CatalogImageRepositoryError();

@@ -1,12 +1,16 @@
 import { notFound } from "next/navigation";
 
 import { CatalogImagePreview } from "@/components/admin/catalog-image-preview";
+import { CatalogImageDiscoveryPanel, type CatalogImageDiscoveryResult } from "@/components/admin/catalog-image-discovery-panel";
 import { getCatalogImageAdminAccess } from "@/lib/admin/catalog-image-auth";
+import { getCatalogImageDiscoveryOptions } from "@/lib/catalog-images/discovery-service";
 import { getCatalogImageWorkbench, type CatalogImageWorkbenchCandidate } from "@/lib/catalog-images/workbench-service";
 
 import {
   approveAndPromoteCatalogImageAction,
   approveCatalogImageAction,
+  cleanupCatalogImagesOverCapAction,
+  discoverCatalogImagesAction,
   loginCatalogImageAdminAction,
   rejectCatalogImageAction,
 } from "./actions";
@@ -34,11 +38,45 @@ function CandidateCard({ candidate }: { candidate: CatalogImageWorkbenchCandidat
   return <article className="grid gap-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:grid-cols-[18rem_minmax(0,1fr)]"><div><div className="mb-3 flex items-center justify-between gap-2"><span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">Candidate</span><span className="text-xs font-medium text-slate-500">{candidate.platform}</span></div><CatalogImagePreview imagePlatform={candidate.imagePlatform} imageUrl={candidate.imageUrl} label="Candidate 图片" productName={candidate.productName}/><p className="mt-2 text-center text-xs text-slate-400">平台商品 ID：{candidate.externalProductId}</p></div><div className="min-w-0"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold text-blue-600">{candidate.category}</p><h2 className="mt-1 text-xl font-bold text-slate-950">{candidate.productName}</h2></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${candidate.targetType === "variant" ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-700"}`}>{candidate.targetLabel}</span></div><dl className="mt-4 grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4 text-sm sm:grid-cols-2"><div><dt className="text-slate-500">Match confidence</dt><dd className="mt-1 font-bold text-slate-900">{candidate.matchConfidence}</dd></div><div><dt className="text-slate-500">Matcher</dt><dd className="mt-1 break-words font-medium text-slate-900">{candidate.evidence.matcher}</dd></div><div><dt className="text-slate-500">匹配层级</dt><dd className="mt-1 font-medium text-slate-900">{candidate.evidence.matchLevel}</dd></div><div><dt className="text-slate-500">已核验信号</dt><dd className="mt-1 font-medium text-slate-900">{candidate.evidence.signals.join(" · ") || "暂无"}</dd></div><div><dt className="text-slate-500">首次发现</dt><dd className="mt-1 font-medium text-slate-900">{formatDate(candidate.firstSeenAt)}</dd></div><div><dt className="text-slate-500">最近发现</dt><dd className="mt-1 font-medium text-slate-900">{formatDate(candidate.lastSeenAt)}</dd></div></dl><div className="mt-4 grid gap-4 xl:grid-cols-2"><CurrentPrimary candidate={candidate}/><section aria-label="主图历史" className="rounded-2xl border border-slate-200 p-4"><h3 className="text-sm font-bold text-slate-900">Primary event 历史</h3>{candidate.events.length ? <ul className="mt-3 grid gap-2 text-xs text-slate-600">{candidate.events.slice(0, 5).map((event, index) => <li className="flex justify-between gap-3" key={`${event.createdAt}-${index}`}><span>{event.action} · {event.changedBy}</span><time className="shrink-0">{formatDate(event.createdAt)}</time></li>)}</ul> : <p className="mt-3 text-sm text-slate-500">暂无主图事件。</p>}</section></div><div className="mt-5 flex flex-wrap gap-2"><form action={approveCatalogImageAction}><input name="imageId" type="hidden" value={candidate.imageId}/><button className="rounded-xl border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50" type="submit">批准</button></form><form action={approveAndPromoteCatalogImageAction}><input name="imageId" type="hidden" value={candidate.imageId}/><button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" type="submit">批准并设为主图</button></form></div><form action={rejectCatalogImageAction} className="mt-4 flex flex-col gap-2 rounded-2xl border border-rose-100 bg-rose-50/40 p-3 sm:flex-row"><input name="imageId" type="hidden" value={candidate.imageId}/><label className="sr-only" htmlFor={`reject-${candidate.imageId}`}>拒绝原因</label><input className="h-10 min-w-0 flex-1 rounded-xl border border-rose-200 bg-white px-3 text-sm outline-none focus:border-rose-400" id={`reject-${candidate.imageId}`} maxLength={500} name="reason" placeholder="拒绝原因（必填）" required/><button className="h-10 rounded-xl border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-700 hover:bg-rose-50" type="submit">拒绝</button></form></div></article>;
 }
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ auth?: string; result?: string }> }) {
+function safeCount(value: string | undefined): number {
+  const count = Number(value);
+  return Number.isSafeInteger(count) && count >= 0 ? count : 0;
+}
+
+function safeProductRef(value: string): string | null {
+  const normalized = value.trim();
+  return /^[\p{L}\p{N}]{2}••[\p{L}\p{N}]{2}$/u.test(normalized) ? normalized : null;
+}
+
+function discoveryResult(params: Record<string, string | undefined>): CatalogImageDiscoveryResult | null {
+  if (params.discovery !== "success" && params.discovery !== "failed") return null;
+  return {
+    status: params.discovery,
+    created: safeCount(params.created), duplicate: safeCount(params.duplicate),
+    skipped: safeCount(params.skipped), rejected: safeCount(params.rejected), failed: safeCount(params.failed),
+    productRefs: (params.refs ?? "").split(",").flatMap((value) => {
+      const safe = safeProductRef(value);
+      return safe ? [safe] : [];
+    }).slice(0, 10),
+  };
+}
+
+function OverCapCleanupPanel({ scopes }: { scopes: Awaited<ReturnType<typeof getCatalogImageWorkbench>>["overCapScopes"] }) {
+  if (scopes.length === 0) return null;
+  return <section aria-label="超额 Candidate 整理" className="mt-6 rounded-3xl border border-amber-200 bg-amber-50/50 p-5"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">Capacity Governance</p><h2 className="mt-1 text-xl font-bold text-slate-950">整理超额候选</h2><p className="mt-1 text-sm text-slate-600">仅拒绝提交时仍被确定性分析标记为 suggested_cleanup 的 Candidate。</p></div><div className="mt-4 grid gap-3">{scopes.map((scope) => {
+    const action = cleanupCatalogImagesOverCapAction.bind(null, scope.productId, scope.platform);
+    return <form action={action} className="rounded-2xl border border-amber-200 bg-white p-4" key={`${scope.productId}:${scope.platform}`}><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-bold text-slate-900">{scope.productName} · {scope.platformLabel}</p><p className="mt-1 text-sm text-slate-500">当前 {scope.activeCount} 条 · 建议整理 {scope.suggestedCleanupCount} 条 · 保留排序更高的 3 条</p></div><button className="h-10 rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white hover:bg-amber-700" type="submit">整理超额候选</button></div><label className="mt-3 flex items-start gap-2 text-sm text-slate-600"><input className="mt-0.5 size-4" name="confirmed" required type="checkbox" value="yes"/><span>我确认由服务端重新计算当前排序，并将仍属超额的 Candidate 标记为 rejected。</span></label></form>;
+  })}</div></section>;
+}
+
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const access = await getCatalogImageAdminAccess();
   if (access === "disabled") notFound();
   const params = await searchParams;
   if (access !== "authorized") return <LoginGate failed={params.auth === "failed"}/>;
-  const workbench = await getCatalogImageWorkbench();
-  return <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8"><div className="mx-auto max-w-6xl"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">PriceAI Internal</p><h1 className="mt-2 text-3xl font-bold text-slate-950">Catalog 图片审核</h1><p className="mt-2 text-sm text-slate-500">只处理待人工确认的 Candidate；消费者页面不会读取本队列。</p></div><span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700">待审核 {workbench.candidates.length}</span></div>{params.result ? <p className={`mt-5 rounded-xl px-4 py-3 text-sm ${params.result === "success" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{params.result === "success" ? "审核操作已完成。" : "审核操作未完成，请刷新后重试。"}</p> : null}<section aria-label="Candidate 审核队列" className="mt-6 grid gap-5">{workbench.candidates.length ? workbench.candidates.map((candidate) => <CandidateCard candidate={candidate} key={candidate.imageId}/>) : <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center"><h2 className="text-lg font-bold text-slate-900">当前没有待审核图片</h2><p className="mt-2 text-sm text-slate-500">新的 matched 平台图片进入 Candidate 后会显示在这里。</p></div>}</section></div></main>;
+  const [workbench, options] = await Promise.all([
+    getCatalogImageWorkbench(),
+    getCatalogImageDiscoveryOptions(),
+  ]);
+  return <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8"><div className="mx-auto max-w-6xl"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">PriceAI Internal</p><h1 className="mt-2 text-3xl font-bold text-slate-950">Catalog 图片审核</h1><p className="mt-2 text-sm text-slate-500">只处理待人工确认的 Candidate；消费者页面不会读取本队列。</p></div><span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700">待审核 {workbench.candidates.length}</span></div>{params.result ? <p className={`mt-5 rounded-xl px-4 py-3 text-sm ${params.result === "success" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{params.result === "success" ? "审核操作已完成。" : "审核操作未完成，请刷新后重试。"}</p> : null}{params.cleanup ? <p className={`mt-5 rounded-xl px-4 py-3 text-sm ${params.cleanup === "success" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{params.cleanup === "success" ? `超额候选整理完成：处理 ${safeCount(params.processed)} 条，当前 active ${safeCount(params.active)} 条。` : "超额候选整理未完成，请刷新后重试。"}</p> : null}<CatalogImageDiscoveryPanel action={discoverCatalogImagesAction} options={options} result={discoveryResult(params)}/><OverCapCleanupPanel scopes={workbench.overCapScopes}/><section aria-label="Candidate 审核队列" className="mt-6 grid gap-5">{workbench.candidates.length ? workbench.candidates.map((candidate) => <CandidateCard candidate={candidate} key={candidate.imageId}/>) : <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center"><h2 className="text-lg font-bold text-slate-900">当前没有待审核图片</h2><p className="mt-2 text-sm text-slate-500">新的 matched 平台图片进入 Candidate 后会显示在这里。</p></div>}</section></div></main>;
 }

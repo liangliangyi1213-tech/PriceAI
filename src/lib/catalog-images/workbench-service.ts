@@ -8,6 +8,7 @@ import {
   type CatalogImageWorkbenchSource,
 } from "./workbench-repository";
 import type { CatalogImage, CatalogImagePrimaryEvent, CatalogImageTargetType } from "./types";
+import { analyzeCatalogImageCandidateOverCap } from "./over-cap-governance";
 
 export type CatalogImageWorkbenchEvent = Readonly<{
   action: CatalogImagePrimaryEvent["action"];
@@ -41,7 +42,19 @@ export type CatalogImageWorkbenchCandidate = Readonly<{
   events: CatalogImageWorkbenchEvent[];
 }>;
 
-export type CatalogImageWorkbench = Readonly<{ candidates: CatalogImageWorkbenchCandidate[] }>;
+export type CatalogImageWorkbenchOverCapScope = Readonly<{
+  productId: string;
+  productName: string;
+  platform: string;
+  platformLabel: string;
+  activeCount: number;
+  suggestedCleanupCount: number;
+}>;
+
+export type CatalogImageWorkbench = Readonly<{
+  candidates: CatalogImageWorkbenchCandidate[];
+  overCapScopes: CatalogImageWorkbenchOverCapScope[];
+}>;
 
 function categoryLabel(category: string): string {
   return searchCategoryIds
@@ -93,13 +106,25 @@ function sameTarget(image: CatalogImage | CatalogImagePrimaryEvent, target: Cata
 export function buildCatalogImageWorkbench(source: CatalogImageWorkbenchSource): CatalogImageWorkbench {
   const products = new Map(source.products.map((product) => [product.id, product]));
   const variants = new Map(source.variants.map((variant) => [variant.id, variant]));
+  const validCandidates = source.candidates.filter((candidate) => {
+    if (candidate.status !== "candidate") return false;
+    const product = products.get(candidate.productId);
+    const variant = candidate.variantId ? variants.get(candidate.variantId) : null;
+    return Boolean(product)
+      && (candidate.targetType === "product") === (candidate.variantId === null)
+      && (!variant || variant.productId === candidate.productId)
+      && (!candidate.variantId || Boolean(variant));
+  });
+  const groups = new Map<string, CatalogImage[]>();
+  for (const candidate of validCandidates) {
+    const key = `${candidate.productId}\u0000${candidate.platform}`;
+    groups.set(key, [...(groups.get(key) ?? []), candidate]);
+  }
   return {
-    candidates: source.candidates.flatMap((candidate) => {
-      if (candidate.status !== "candidate") return [];
+    candidates: validCandidates.flatMap((candidate) => {
       const product = products.get(candidate.productId);
       const variant = candidate.variantId ? variants.get(candidate.variantId) : null;
-      if (!product || (candidate.targetType === "product") !== (candidate.variantId === null)
-        || (variant && variant.productId !== candidate.productId) || (candidate.variantId && !variant)) return [];
+      if (!product) return [];
       const candidateImage = safeImageUrl(candidate);
       const current = source.primaries.find((primary) => sameTarget(primary, candidate));
       const currentImage = current ? safeImageUrl(current) : null;
@@ -131,6 +156,23 @@ export function buildCatalogImageWorkbench(source: CatalogImageWorkbenchSource):
           createdAt: event.createdAt,
         })),
       }];
+    }),
+    overCapScopes: [...groups.values()].flatMap((images) => {
+      const first = images[0];
+      const product = first ? products.get(first.productId) : null;
+      if (!first || !product) return [];
+      const report = analyzeCatalogImageCandidateOverCap(images, {
+        productId: first.productId,
+        platform: first.platform,
+      });
+      return report.suggestedCleanupCount > 0 ? [{
+        productId: first.productId,
+        productName: product.name,
+        platform: first.platform,
+        platformLabel: platformDetails(first.platform).label,
+        activeCount: report.activeCount,
+        suggestedCleanupCount: report.suggestedCleanupCount,
+      }] : [];
     }),
   };
 }

@@ -56,4 +56,23 @@ describe("Catalog image workbench view model", () => {
       products: [{ id: "product-1", name: "示例商品", category: "phone" }], variants: [],
     }).candidates).toEqual([]);
   });
+
+  it("exposes only a scoped over-cap summary for an explicit admin cleanup operation", () => {
+    const model = buildCatalogImageWorkbench({
+      candidates: Array.from({ length: 4 }, (_, index) => candidate({ id: `candidate-${index + 1}` })),
+      primaries: [], events: [],
+      products: [{ id: "product-1", name: "示例商品", category: "phone" }], variants: [],
+    });
+
+    expect(model.overCapScopes).toEqual([{
+      productId: "product-1",
+      productName: "示例商品",
+      platform: "taobao",
+      platformLabel: "淘宝",
+      activeCount: 4,
+      suggestedCleanupCount: 1,
+    }]);
+    expect(JSON.stringify(model.overCapScopes)).not.toContain("candidate-");
+    expect(JSON.stringify(model.overCapScopes)).not.toContain("alicdn");
+  });
 });
