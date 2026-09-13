@@ -68,7 +68,7 @@ describe("Catalog image admin page", () => {
   it("renders single and bounded batch discovery controls without exposing platform identities", async () => {
     mocks.access.mockResolvedValue("authorized");
     const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({
-      discovery: "success", created: "1", duplicate: "2", skipped: "3", rejected: "0", failed: "1", refs: "xi••15",
+      discovery: "success", created: "1", duplicate: "2", suppressed: "4", skipped: "3", rejected: "0", failed: "1", refs: "xi••15",
     }) }));
 
     expect(html).toContain("发现候选图片");
@@ -77,6 +77,7 @@ describe("Catalog image admin page", () => {
     expect(html).toContain("最多 10 个 Product");
     expect(html).toContain("新增 1");
     expect(html).toContain("重复 2");
+    expect(html).toContain("抑制 4");
     expect(html).toContain("xi••15");
     expect(html).not.toContain("source_url");
     expect(html).not.toContain("externalProductId");

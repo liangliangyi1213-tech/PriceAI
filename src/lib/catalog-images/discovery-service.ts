@@ -41,6 +41,7 @@ export type CatalogImageDiscoveryItem = Readonly<{
 type DiscoveryCounts = Readonly<{
   created: number;
   duplicate: number;
+  suppressed: number;
   skipped: number;
   rejected: number;
   failed: number;
@@ -84,7 +85,7 @@ type ProductAccumulator = {
 };
 
 function emptyCounts(): MutableCounts {
-  return { created: 0, duplicate: 0, skipped: 0, rejected: 0, failed: 0 };
+  return { created: 0, duplicate: 0, suppressed: 0, skipped: 0, rejected: 0, failed: 0 };
 }
 
 export function maskCatalogProductId(productId: string): string {
@@ -125,6 +126,10 @@ function classifySkippedMatch(
 }
 
 function applyOutcome(outcome: CatalogImageCandidateOutcome, counts: MutableCounts): void {
+  if (outcome.status === "suppressed") {
+    increment(counts, "suppressed");
+    return;
+  }
   if (outcome.status !== "skipped") {
     increment(counts, outcome.status);
     return;
@@ -225,12 +230,8 @@ export async function runCatalogImageDiscovery(
               increment(report.counts, "rejected");
               continue;
             }
-            if (availableSlots === 0) {
-              increment(report.counts, "skipped");
-              continue;
-            }
             try {
-              const outcome = await createCandidate(item);
+              const outcome = await createCandidate(item, undefined, { allowCreate: availableSlots > 0 });
               applyOutcome(outcome, report.counts);
               if (outcome.status === "created") availableSlots -= 1;
             } catch {
@@ -252,6 +253,7 @@ export async function runCatalogImageDiscovery(
   const summary = products.reduce<MutableCounts>((total, product) => {
     total.created += product.created;
     total.duplicate += product.duplicate;
+    total.suppressed += product.suppressed;
     total.skipped += product.skipped;
     total.rejected += product.rejected;
     total.failed += product.failed;

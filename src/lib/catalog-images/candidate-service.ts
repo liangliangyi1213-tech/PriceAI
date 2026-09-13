@@ -6,6 +6,7 @@ import type { LiveTaobaoOffer } from "@/lib/platforms/taobao-client";
 import type { Product, ProductVariant } from "@/types/catalog";
 
 import { SupabaseCatalogImageRepository } from "./repository";
+import type { CatalogImageRejectedSourceSuppression } from "./rejected-source-suppression";
 import type {
   CatalogImageMatcher,
   CatalogImageMatchSignal,
@@ -35,10 +36,14 @@ export type CatalogImageCandidateSource =
 
 export type CatalogImageCandidateOutcome = CreateCatalogImageCandidateResult | Readonly<{
   status: "skipped";
-  reason: "ambiguous" | "rejected" | "unmatched" | "invalid_image" | "invalid_identity" | "invalid_match" | "invalid_target";
+  reason: "ambiguous" | "rejected" | "unmatched" | "invalid_image" | "invalid_identity" | "invalid_match" | "invalid_target" | "capacity";
+}> | Readonly<{
+  status: "suppressed";
+  reason: CatalogImageRejectedSourceSuppression;
 }>;
 
 export interface CatalogImageCandidateRepository {
+  getRejectedSourceSuppression(input: CreateCatalogImageCandidate): Promise<CatalogImageRejectedSourceSuppression | null>;
   createCandidateIfAbsent(input: CreateCatalogImageCandidate): Promise<CreateCatalogImageCandidateResult>;
 }
 
@@ -103,6 +108,7 @@ function candidateSource(source: CatalogImageCandidateSource) {
 export async function createCatalogImageCandidate(
   input: Readonly<{ source: CatalogImageCandidateSource; match: CatalogImageCandidateMatch }>,
   repository: CatalogImageCandidateRepository = new SupabaseCatalogImageRepository(),
+  options: Readonly<{ allowCreate?: boolean }> = {},
 ): Promise<CatalogImageCandidateOutcome> {
   if (input.match.status !== "matched") {
     return { status: "skipped", reason: input.match.status };
@@ -123,7 +129,7 @@ export async function createCatalogImageCandidate(
       : Boolean(input.source.listing.goodsId.trim());
     return { status: "skipped", reason: hasIdentity ? "invalid_image" : "invalid_identity" };
   }
-  return repository.createCandidateIfAbsent({
+  const candidate = {
     ...target,
     ...source,
     matchConfidence: input.match.matchConfidence,
@@ -133,5 +139,9 @@ export async function createCatalogImageCandidate(
       matchLevel: target.targetType,
       signals: uniqueSignals(input.match.evidence.signals),
     },
-  });
+  } satisfies CreateCatalogImageCandidate;
+  const suppression = await repository.getRejectedSourceSuppression(candidate);
+  if (suppression) return { status: "suppressed", reason: suppression };
+  if (options.allowCreate === false) return { status: "skipped", reason: "capacity" };
+  return repository.createCandidateIfAbsent(candidate);
 }

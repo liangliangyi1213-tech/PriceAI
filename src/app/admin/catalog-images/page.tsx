@@ -53,6 +53,7 @@ function discoveryResult(params: Record<string, string | undefined>): CatalogIma
   return {
     status: params.discovery,
     created: safeCount(params.created), duplicate: safeCount(params.duplicate),
+    suppressed: safeCount(params.suppressed),
     skipped: safeCount(params.skipped), rejected: safeCount(params.rejected), failed: safeCount(params.failed),
     productRefs: (params.refs ?? "").split(",").flatMap((value) => {
       const safe = safeProductRef(value);

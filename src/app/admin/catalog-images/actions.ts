@@ -85,6 +85,7 @@ function discoveryResultLocation(report: CatalogImageDiscoveryReport): string {
     discovery: "success",
     created: String(report.summary.created),
     duplicate: String(report.summary.duplicate),
+    suppressed: String(report.summary.suppressed),
     skipped: String(report.summary.skipped),
     rejected: String(report.summary.rejected),
     failed: String(report.summary.failed),

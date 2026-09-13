@@ -34,8 +34,8 @@ describe("catalog image discovery admin service", () => {
 
   it("returns only the safe discovery report", async () => {
     const safeReport = {
-      summary: { created: 1, duplicate: 0, skipped: 0, rejected: 0, failed: 0 },
-      products: [{ productRef: "pr••-1", productName: "商品一", status: "completed", created: 1, duplicate: 0, skipped: 0, rejected: 0, failed: 0 }],
+      summary: { created: 1, duplicate: 0, suppressed: 0, skipped: 0, rejected: 0, failed: 0 },
+      products: [{ productRef: "pr••-1", productName: "商品一", status: "completed", created: 1, duplicate: 0, suppressed: 0, skipped: 0, rejected: 0, failed: 0 }],
     } as const;
     const runDiscovery = vi.fn().mockResolvedValue(safeReport);
 

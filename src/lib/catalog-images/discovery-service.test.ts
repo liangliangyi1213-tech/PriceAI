@@ -38,7 +38,7 @@ describe("catalog image discovery service", () => {
   const createCandidate = vi.fn<() => Promise<CatalogImageCandidateOutcome>>();
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     createCandidate.mockResolvedValue({ status: "created", imageId: "image-1" });
   });
 
@@ -60,7 +60,7 @@ describe("catalog image discovery service", () => {
     });
 
     expect(createCandidate).toHaveBeenCalledTimes(1);
-    expect(report.summary).toEqual({ created: 1, duplicate: 0, skipped: 2, rejected: 1, failed: 0 });
+    expect(report.summary).toEqual({ created: 1, duplicate: 0, suppressed: 0, skipped: 2, rejected: 1, failed: 0 });
     expect(report.products[0]).toMatchObject({ productRef: "xi••15", productName: "小米 15" });
     expect(JSON.stringify(report)).not.toContain("matched");
   });
@@ -99,13 +99,16 @@ describe("catalog image discovery service", () => {
     expect(catalogProduct.image).toBe(originalImage);
   });
 
-  it("does not grow active Candidates after the Product/platform capacity is reached", async () => {
+  it("classifies suppressed sources without growing Candidates after capacity is reached", async () => {
     const discover = vi.fn().mockResolvedValue([
       matched(xiaomi, "taobao", "rotating-item-1"),
       matched(xiaomi, "taobao", "rotating-item-2"),
       matched(xiaomi, "taobao", "rotating-item-3"),
     ]);
     const getActiveCandidateCount = vi.fn().mockResolvedValue(6);
+    createCandidate
+      .mockResolvedValueOnce({ status: "suppressed", reason: "capacity_cooldown" })
+      .mockResolvedValue({ status: "skipped", reason: "capacity" });
 
     const report = await runCatalogImageDiscovery({ mode: "single", productIds: [xiaomi.id] }, {
       loadProducts: async () => [xiaomi],
@@ -115,8 +118,9 @@ describe("catalog image discovery service", () => {
     });
 
     expect(getActiveCandidateCount).toHaveBeenCalledWith(xiaomi.id, "taobao");
-    expect(createCandidate).not.toHaveBeenCalled();
-    expect(report.summary).toEqual({ created: 0, duplicate: 0, skipped: 3, rejected: 0, failed: 0 });
+    expect(createCandidate).toHaveBeenCalledTimes(3);
+    expect(createCandidate).toHaveBeenCalledWith(expect.anything(), undefined, { allowCreate: false });
+    expect(report.summary).toEqual({ created: 0, duplicate: 0, suppressed: 1, skipped: 2, rejected: 0, failed: 0 });
   });
 
   it("rejects a provider result that points at a different Catalog Product", async () => {
@@ -146,7 +150,7 @@ describe("catalog image discovery service", () => {
 
     expect(discover).not.toHaveBeenCalled();
     expect(createCandidate).not.toHaveBeenCalled();
-    expect(report.summary).toEqual({ created: 0, duplicate: 0, skipped: 1, rejected: 0, failed: 0 });
+    expect(report.summary).toEqual({ created: 0, duplicate: 0, suppressed: 0, skipped: 1, rejected: 0, failed: 0 });
     expect(report.products[0]).toMatchObject({ status: "unsupported" });
   });
 
@@ -158,7 +162,7 @@ describe("catalog image discovery service", () => {
       loadProducts: async () => [xiaomi, iphone], providers: [taobao, pdd], createCandidate,
     });
 
-    expect(report.summary).toEqual({ created: 2, duplicate: 0, skipped: 0, rejected: 0, failed: 2 });
+    expect(report.summary).toEqual({ created: 2, duplicate: 0, suppressed: 0, skipped: 0, rejected: 0, failed: 2 });
     expect(createCandidate).toHaveBeenCalledTimes(2);
     expect(JSON.stringify(report)).not.toContain("private platform response");
   });
@@ -176,7 +180,7 @@ describe("catalog image discovery service", () => {
     });
 
     expect(timedOutSignal?.aborted).toBe(true);
-    expect(report.summary).toEqual({ created: 1, duplicate: 0, skipped: 0, rejected: 0, failed: 1 });
+    expect(report.summary).toEqual({ created: 1, duplicate: 0, suppressed: 0, skipped: 0, rejected: 0, failed: 1 });
   });
 
   it("rejects oversized batches before loading Catalog or calling platforms", async () => {
@@ -215,5 +219,22 @@ describe("catalog image discovery service", () => {
     await operation;
     expect(discover).toHaveBeenCalledTimes(4);
     expect(peak).toBe(2);
+  });
+
+  it("counts a suppressed source separately without affecting another Product", async () => {
+    createCandidate
+      .mockResolvedValueOnce({ status: "suppressed", reason: "manual_rejection" })
+      .mockResolvedValueOnce({ status: "created", imageId: "image-2" });
+    const taobao = provider("taobao", vi.fn(async (catalogProduct: typeof xiaomi) => [matched(catalogProduct)]));
+
+    const report = await runCatalogImageDiscovery({ mode: "batch", productIds: [xiaomi.id, iphone.id] }, {
+      loadProducts: async () => [xiaomi, iphone], providers: [taobao], createCandidate,
+    });
+
+    expect(report.summary).toEqual({ created: 1, duplicate: 0, suppressed: 1, skipped: 0, rejected: 0, failed: 0 });
+    expect(report.products).toEqual(expect.arrayContaining([
+      expect.objectContaining({ productRef: "xi••15", suppressed: 1, created: 0 }),
+      expect.objectContaining({ productRef: "ap••ro", suppressed: 0, created: 1 }),
+    ]));
   });
 });

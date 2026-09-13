@@ -6,6 +6,11 @@ import { getCatalogSyncWriteClient } from "@/lib/catalog-sync/write-client";
 import type { ProductImageRow } from "@/lib/supabase/database.types";
 
 import { mapProductImageRow } from "./mapper";
+import {
+  classifyRejectedSourceSuppression,
+  type CatalogImageRejectedSourceSuppression,
+  type RejectedSourceLifecycleRecord,
+} from "./rejected-source-suppression";
 import type {
   AppendPrimaryImageEvent,
   CatalogImage,
@@ -83,6 +88,48 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 export class SupabaseCatalogImageRepository {
+  async getRejectedSourceSuppression(
+    input: CreateCatalogImageCandidate,
+    now = new Date(),
+  ): Promise<CatalogImageRejectedSourceSuppression | null> {
+    const row = candidateRow(input);
+    try {
+      let query = getCatalogSyncWriteClient()
+        .from("product_images")
+        .select("status, rejection_reason, status_changed_at")
+        .eq("status", "rejected")
+        .eq("product_id", row.product_id)
+        .eq("target_type", row.target_type)
+        .eq("platform", row.platform)
+        .eq("external_product_id", row.external_product_id)
+        .eq("source_url_hash", row.source_url_hash);
+      query = row.variant_id === null
+        ? query.is("variant_id", null)
+        : query.eq("variant_id", row.variant_id);
+      query = row.external_variant_id === null
+        ? query.is("external_variant_id", null)
+        : query.eq("external_variant_id", row.external_variant_id);
+      const { data, error } = await query.limit(100);
+      if (error) throw error;
+      const records = (data ?? []).flatMap((record): RejectedSourceLifecycleRecord[] => {
+        if (!record || typeof record !== "object") return [];
+        const value = record as Record<string, unknown>;
+        if (typeof value.status !== "string" || typeof value.status_changed_at !== "string"
+          || (value.rejection_reason !== null && typeof value.rejection_reason !== "string")) return [];
+        if (!["candidate", "approved", "rejected", "unavailable"].includes(value.status)) return [];
+        return [{
+          status: value.status as RejectedSourceLifecycleRecord["status"],
+          rejectionReason: value.rejection_reason as string | null,
+          statusChangedAt: value.status_changed_at,
+        }];
+      });
+      return classifyRejectedSourceSuppression(records, now);
+    } catch (error) {
+      if (error instanceof CatalogImageRepositoryError) throw error;
+      throw new CatalogImageRepositoryError();
+    }
+  }
+
   async getActiveCandidates(productId: string, platform: string): Promise<CatalogImage[]> {
     const normalizedProductId = productId.trim();
     const normalizedPlatform = platform.trim();

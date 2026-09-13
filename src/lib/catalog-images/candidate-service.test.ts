@@ -61,10 +61,12 @@ function pinduoduoGoods(overrides: Partial<PinduoduoGoods> = {}): PinduoduoGoods
 
 describe("catalog image candidate service", () => {
   const createCandidateIfAbsent = vi.fn();
-  const repository: CatalogImageCandidateRepository = { createCandidateIfAbsent };
+  const getRejectedSourceSuppression = vi.fn();
+  const repository: CatalogImageCandidateRepository = { createCandidateIfAbsent, getRejectedSourceSuppression };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    getRejectedSourceSuppression.mockResolvedValue(null);
     createCandidateIfAbsent.mockResolvedValue({ status: "created", imageId: "image-1" });
   });
 
@@ -201,6 +203,63 @@ describe("catalog image candidate service", () => {
       },
     }, repository)).resolves.toEqual({ status: "duplicate", imageId: "image-existing" });
     expect(createCandidateIfAbsent).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["manual_rejection", "capacity_cooldown"] as const)(
+    "suppresses an identical rejected source before insert: %s",
+    async (reason) => {
+      getRejectedSourceSuppression.mockResolvedValue(reason);
+
+      await expect(createCatalogImageCandidate({
+        source: { platform: "taobao", listing: taobaoOffer() },
+        match: {
+          status: "matched", product, matchConfidence: 0.98,
+          evidence: { matcher: "taobao_phone_strict", signals: ["brand", "model"] },
+        },
+      }, repository)).resolves.toEqual({ status: "suppressed", reason });
+      expect(createCandidateIfAbsent).not.toHaveBeenCalled();
+    },
+  );
+
+  it("classifies a rejected source even when the active Candidate capacity is full", async () => {
+    getRejectedSourceSuppression.mockResolvedValue("capacity_cooldown");
+
+    await expect(createCatalogImageCandidate({
+      source: { platform: "taobao", listing: taobaoOffer() },
+      match: {
+        status: "matched", product, matchConfidence: 0.98,
+        evidence: { matcher: "taobao_phone_strict", signals: ["brand", "model"] },
+      },
+    }, repository, { allowCreate: false })).resolves.toEqual({
+      status: "suppressed", reason: "capacity_cooldown",
+    });
+    expect(createCandidateIfAbsent).not.toHaveBeenCalled();
+  });
+
+  it("does not insert an unsuppressed source when the active Candidate capacity is full", async () => {
+    await expect(createCatalogImageCandidate({
+      source: { platform: "taobao", listing: taobaoOffer() },
+      match: {
+        status: "matched", product, matchConfidence: 0.98,
+        evidence: { matcher: "taobao_phone_strict", signals: ["brand", "model"] },
+      },
+    }, repository, { allowCreate: false })).resolves.toEqual({ status: "skipped", reason: "capacity" });
+    expect(createCandidateIfAbsent).not.toHaveBeenCalled();
+  });
+
+  it("allows the same listing to create a Candidate when its image source identity changes", async () => {
+    getRejectedSourceSuppression.mockImplementation(async (input) => (
+      input.sourceUrl.endsWith("xiaomi-15-main.jpg") ? "manual_rejection" : null
+    ));
+
+    await expect(createCatalogImageCandidate({
+      source: { platform: "taobao", listing: taobaoOffer({ pictUrl: "https://img.alicdn.com/xiaomi-15-new.jpg" }) },
+      match: {
+        status: "matched", product, matchConfidence: 0.98,
+        evidence: { matcher: "taobao_phone_strict", signals: ["brand", "model"] },
+      },
+    }, repository)).resolves.toEqual({ status: "created", imageId: "image-1" });
+    expect(createCandidateIfAbsent).toHaveBeenCalledOnce();
   });
 
   it("does not mutate the legacy Catalog product image", async () => {

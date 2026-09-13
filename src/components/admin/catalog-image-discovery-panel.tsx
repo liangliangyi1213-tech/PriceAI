@@ -9,6 +9,7 @@ export type CatalogImageDiscoveryResult = Readonly<{
   status: "success" | "failed";
   created: number;
   duplicate: number;
+  suppressed: number;
   skipped: number;
   rejected: number;
   failed: number;
@@ -25,7 +26,7 @@ function ResultBanner({ result }: { result: CatalogImageDiscoveryResult }) {
   if (result.status === "failed") {
     return <p className="mt-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">候选图片发现未完成，请稍后重试。</p>;
   }
-  return <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-emerald-800"><p className="font-semibold">候选发现已完成</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1"><span>新增 {result.created}</span><span>重复 {result.duplicate}</span><span>跳过 {result.skipped}</span><span>拒绝 {result.rejected}</span><span>失败 {result.failed}</span></div>{result.productRefs.length ? <p className="mt-2 text-xs text-emerald-700">Catalog 标识：{result.productRefs.join(" · ")}</p> : null}</div>;
+  return <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-emerald-800"><p className="font-semibold">候选发现已完成</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1"><span>新增 {result.created}</span><span>重复 {result.duplicate}</span><span>抑制 {result.suppressed}</span><span>跳过 {result.skipped}</span><span>拒绝 {result.rejected}</span><span>失败 {result.failed}</span></div>{result.productRefs.length ? <p className="mt-2 text-xs text-emerald-700">Catalog 标识：{result.productRefs.join(" · ")}</p> : null}</div>;
 }
 
 export function CatalogImageDiscoveryPanel({ action, options, result }: Props) {
