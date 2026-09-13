@@ -24,6 +24,10 @@ function image(overrides: Partial<CatalogImage> = {}): CatalogImage {
     storageBucket: null,
     storageObjectPath: null,
     verifiedAt: "2026-09-12T00:00:00.000Z",
+    verifiedBy: "reviewer",
+    verificationMethod: "manual",
+    firstSeenAt: "2026-09-11T00:00:00.000Z",
+    lastSeenAt: "2026-09-12T00:00:00.000Z",
     ...overrides,
   };
 }

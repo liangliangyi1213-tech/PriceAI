@@ -34,6 +34,23 @@ export type CatalogImage = Readonly<{
   storageBucket: string | null;
   storageObjectPath: string | null;
   verifiedAt: string | null;
+  verifiedBy: string | null;
+  verificationMethod: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}>;
+
+export type CatalogImagePrimaryEvent = Readonly<{
+  id: string;
+  productId: string;
+  variantId: string | null;
+  targetType: CatalogImageTargetType;
+  previousImageId: string | null;
+  newImageId: string | null;
+  action: "initial" | "replace" | "rollback" | "clear";
+  reason: string;
+  changedBy: string;
+  createdAt: string;
 }>;
 
 export type CatalogImageResolution = Readonly<{

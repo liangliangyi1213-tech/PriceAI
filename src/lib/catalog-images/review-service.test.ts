@@ -8,6 +8,7 @@ import {
   approveCatalogImageCandidate,
   CatalogImageReviewError,
   promoteCatalogImagePrimary,
+  rejectCatalogImageCandidate,
 } from "./review-service";
 import type {
   CatalogImageReviewContext,
@@ -45,6 +46,10 @@ function image(overrides: Partial<CatalogImage> = {}): CatalogImage {
     storageBucket: null,
     storageObjectPath: null,
     verifiedAt: null,
+    verifiedBy: null,
+    verificationMethod: null,
+    firstSeenAt: "2026-09-11T00:00:00.000Z",
+    lastSeenAt: "2026-09-12T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -152,6 +157,29 @@ describe("catalog image review service", () => {
     }, repository)).rejects.toEqual(new CatalogImageReviewError("not_candidate"));
     expect(approveCandidate).not.toHaveBeenCalled();
     expect(rejectCandidate).not.toHaveBeenCalled();
+  });
+
+  it("manually rejects a current candidate with a required reason", async () => {
+    await expect(rejectCatalogImageCandidate({
+      imageId: "image-1",
+      reviewer: "catalog-reviewer",
+      reason: "wrong product identity",
+    }, repository)).resolves.toBeUndefined();
+    expect(rejectCandidate).toHaveBeenCalledWith({ imageId: "image-1", reason: "wrong product identity" });
+  });
+
+  it("does not manually reject a non-candidate or accept an empty reason", async () => {
+    await expect(rejectCatalogImageCandidate({
+      imageId: "image-1",
+      reviewer: "catalog-reviewer",
+      reason: "",
+    }, repository)).rejects.toEqual(new CatalogImageReviewError("review_metadata_invalid"));
+    getReviewContext.mockResolvedValue(context({ image: image({ status: "approved" }) }));
+    await expect(rejectCatalogImageCandidate({
+      imageId: "image-1",
+      reviewer: "catalog-reviewer",
+      reason: "reject approved image",
+    }, repository)).rejects.toEqual(new CatalogImageReviewError("not_candidate"));
   });
 
   it.each(["initial", "replace", "rollback"] as const)(

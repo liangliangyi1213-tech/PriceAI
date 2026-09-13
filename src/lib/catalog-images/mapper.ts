@@ -35,5 +35,9 @@ export function mapProductImageRow(row: ProductImageRow): CatalogImage | null {
     storageBucket: row.storage_bucket,
     storageObjectPath: row.storage_object_path,
     verifiedAt: row.verified_at,
+    verifiedBy: row.verified_by,
+    verificationMethod: row.verification_method,
+    firstSeenAt: row.first_seen_at,
+    lastSeenAt: row.last_seen_at,
   };
 }

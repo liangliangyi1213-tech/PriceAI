@@ -165,6 +165,22 @@ export async function approveCatalogImageCandidate(
   });
 }
 
+export async function rejectCatalogImageCandidate(
+  input: Readonly<{ imageId: string; reviewer: string; reason: string }>,
+  repository: CatalogImageReviewRepository = new SupabaseCatalogImageRepository(),
+): Promise<void> {
+  if (!nonEmpty(input.imageId, 100) || !nonEmpty(input.reviewer, 120) || !nonEmpty(input.reason, 500)) {
+    throw new CatalogImageReviewError("review_metadata_invalid");
+  }
+  const context = await repository.getReviewContext(input.imageId.trim());
+  if (!context) throw new CatalogImageReviewError("not_found");
+  if (context.image.status !== "candidate") throw new CatalogImageReviewError("not_candidate");
+  await repository.rejectCandidate({
+    imageId: context.image.id,
+    reason: input.reason.trim(),
+  });
+}
+
 export async function promoteCatalogImagePrimary(
   input: Readonly<{
     imageId: string;

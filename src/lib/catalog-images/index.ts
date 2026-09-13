@@ -5,9 +5,11 @@ export {
   approveCatalogImageCandidate,
   CatalogImageReviewError,
   promoteCatalogImagePrimary,
+  rejectCatalogImageCandidate,
 } from "./review-service";
 export type {
   CatalogImage,
+  CatalogImagePrimaryEvent,
   CatalogImageResolution,
   CatalogImageRole,
   CatalogImageStatus,
