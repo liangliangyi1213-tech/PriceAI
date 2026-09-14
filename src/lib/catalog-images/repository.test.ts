@@ -22,6 +22,7 @@ const approvedRow: ProductImageRow = {
   verification_method: "manual", verified_at: "2026-09-12T00:00:00.000Z", verified_by: "reviewer",
   rejection_reason: null, unavailable_reason: null, content_hash: null,
   storage_bucket: null, storage_object_path: null,
+  content_type: null, width: null, height: null, mirrored_at: null, last_checked_at: null,
   first_seen_at: "2026-09-12T00:00:00.000Z", last_seen_at: "2026-09-12T00:00:00.000Z",
   status_changed_at: "2026-09-12T00:00:00.000Z", created_at: "2026-09-12T00:00:00.000Z",
   updated_at: "2026-09-12T00:00:00.000Z",

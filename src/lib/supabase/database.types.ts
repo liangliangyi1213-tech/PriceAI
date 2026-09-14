@@ -49,6 +49,9 @@ export type ProductImageRow = {
   verified_by: string | null; rejection_reason: string | null;
   unavailable_reason: string | null; content_hash: string | null;
   storage_bucket: string | null; storage_object_path: string | null;
+  content_type: string | null;
+  width: number | null; height: number | null; mirrored_at: string | null;
+  last_checked_at: string | null;
   first_seen_at: string; last_seen_at: string; status_changed_at: string;
   created_at: string; updated_at: string;
 };

@@ -33,6 +33,11 @@ export type CatalogImage = Readonly<{
   contentHash: string | null;
   storageBucket: string | null;
   storageObjectPath: string | null;
+  contentType: "image/jpeg" | "image/png" | "image/webp" | null;
+  width: number | null;
+  height: number | null;
+  mirroredAt: string | null;
+  lastCheckedAt: string | null;
   verifiedAt: string | null;
   verifiedBy: string | null;
   verificationMethod: string | null;

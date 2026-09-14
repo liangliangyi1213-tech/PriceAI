@@ -12,7 +12,8 @@ function candidate(overrides: Partial<CatalogImage> = {}): CatalogImage {
     externalVariantId: null, sourceKind: "pict_url", sourceUrl: "https://img.alicdn.com/candidate.jpg",
     sourceHost: "img.alicdn.com", sourceUrlHash: "a".repeat(64), matchConfidence: 0.98,
     matchEvidence: { schemaVersion: 1, matcher: "taobao_phone_strict", matchLevel: "product", signals: ["brand", "model"], raw: "must-not-leak" },
-    contentHash: null, storageBucket: null, storageObjectPath: null, verifiedAt: null,
+    contentHash: null, storageBucket: null, storageObjectPath: null,
+    contentType: null, width: null, height: null, mirroredAt: null, lastCheckedAt: null, verifiedAt: null,
     verifiedBy: null, verificationMethod: null, firstSeenAt: "2026-09-10T00:00:00.000Z",
     lastSeenAt: "2026-09-12T00:00:00.000Z", ...overrides,
   };
