@@ -157,6 +157,20 @@ describe("Catalog mirror downloader", () => {
     })).rejects.toEqual(new CatalogImageMirrorError("timeout"));
   });
 
+  it("maps only an explicit upstream 5xx response to a retryable code", async () => {
+    await expect(downloadMirrorSource({ url: "https://img.alicdn.com/a.png", platform: "taobao", policy }, {
+      resolve: vi.fn().mockResolvedValue([{ address: "93.184.216.34", family: 4 }]),
+      requestHop: vi.fn().mockResolvedValue(response({ statusCode: 503 })),
+    })).rejects.toEqual(new CatalogImageMirrorError("upstream_server_error"));
+  });
+
+  it("keeps a non-5xx HTTP failure non-retryable", async () => {
+    await expect(downloadMirrorSource({ url: "https://img.alicdn.com/a.png", platform: "taobao", policy }, {
+      resolve: vi.fn().mockResolvedValue([{ address: "93.184.216.34", family: 4 }]),
+      requestHop: vi.fn().mockResolvedValue(response({ statusCode: 404 })),
+    })).rejects.toEqual(new CatalogImageMirrorError("download_failed"));
+  });
+
   it("applies the total timeout while DNS resolution is still pending", async () => {
     await expect(downloadMirrorSource({ url: "https://img.alicdn.com/a.png", platform: "taobao", policy }, {
       timeoutMs: 2,

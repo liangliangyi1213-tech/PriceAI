@@ -69,3 +69,18 @@ export type ProductImagePromotionRow = {
   promotion_action: "initial" | "replace" | "rollback";
   primary_event_id: string;
 };
+
+export type ProductImageMirrorJobRow = {
+  id: string;
+  image_id: string;
+  primary_event_id: string;
+  status: "pending" | "processing" | "succeeded" | "retry_wait" | "permanently_failed" | "cancelled";
+  attempt_count: number;
+  next_attempt_at: string | null;
+  last_error_code: string | null;
+  policy_version: number;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  updated_at: string;
+};

@@ -3,12 +3,12 @@ import "server-only";
 import { SupabaseCatalogImageRepository } from "./repository";
 import {
   approveCatalogImageCandidate,
-  promoteCatalogImagePrimary,
   rejectCatalogImageCandidate,
   type CatalogImageReviewRepository,
   type CatalogImageReviewFailure,
   type PrimaryPromotionResult,
 } from "./review-service";
+import { promoteCatalogImagePrimaryAndSchedule } from "./promotion-orchestration";
 import type { CatalogImage } from "./types";
 
 export type CatalogImageAdminOperation =
@@ -30,7 +30,7 @@ type AdminReviewRepository = CatalogImageReviewRepository & {
 type AdminOperationDependencies = Readonly<{
   repository: AdminReviewRepository;
   approve: typeof approveCatalogImageCandidate;
-  promote: typeof promoteCatalogImagePrimary;
+  promote: typeof promoteCatalogImagePrimaryAndSchedule;
   reject: typeof rejectCatalogImageCandidate;
 }>;
 
@@ -38,7 +38,7 @@ const defaultRepository = new SupabaseCatalogImageRepository();
 const defaultDependencies: AdminOperationDependencies = {
   repository: defaultRepository,
   approve: approveCatalogImageCandidate,
-  promote: promoteCatalogImagePrimary,
+  promote: promoteCatalogImagePrimaryAndSchedule,
   reject: rejectCatalogImageCandidate,
 };
 

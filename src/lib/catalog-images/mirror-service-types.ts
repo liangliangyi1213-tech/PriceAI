@@ -12,6 +12,7 @@ export type CatalogImageMirrorErrorCode =
   | "dns_blocked"
   | "redirect_blocked"
   | "timeout"
+  | "upstream_server_error"
   | "download_failed"
   | "response_too_large"
   | "unsupported_mime"

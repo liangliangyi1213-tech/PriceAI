@@ -200,7 +200,12 @@ export async function downloadMirrorSource(
           current = safeSourceUrl(redirectUrl.href, input.platform) ?? (() => { throw new CatalogImageMirrorError("redirect_blocked"); })();
           continue;
         }
-        if (response.statusCode < 200 || response.statusCode >= 300) throw new CatalogImageMirrorError("download_failed");
+        if (response.statusCode >= 500 && response.statusCode <= 599) {
+          throw new CatalogImageMirrorError("upstream_server_error");
+        }
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          throw new CatalogImageMirrorError("download_failed");
+        }
         const contentLength = header(response.headers, "content-length");
         if (contentLength !== null) {
           const length = Number(contentLength);

@@ -1,6 +1,8 @@
 export { mapProductImageRow } from "./mapper";
 export { resolveCatalogImage } from "./resolver";
 export { createCatalogImageCandidate } from "./candidate-service";
+export { enqueueCatalogImageMirrorJob, runNextCatalogImageMirrorJob } from "./mirror-job-service";
+export { promoteCatalogImagePrimaryAndSchedule } from "./promotion-orchestration";
 export {
   approveCatalogImageCandidate,
   CatalogImageReviewError,
