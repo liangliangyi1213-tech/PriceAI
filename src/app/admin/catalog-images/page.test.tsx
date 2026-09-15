@@ -4,9 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const mocks = vi.hoisted(() => ({ access: vi.fn(), workbench: vi.fn(), discoveryOptions: vi.fn(), notFound: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  access: vi.fn(), workbench: vi.fn(), mirrorOverview: vi.fn(), discoveryOptions: vi.fn(), notFound: vi.fn(),
+}));
 vi.mock("@/lib/admin/catalog-image-auth", () => ({ getCatalogImageAdminAccess: mocks.access }));
 vi.mock("@/lib/catalog-images/workbench-service", () => ({ getCatalogImageWorkbench: mocks.workbench }));
+vi.mock("@/lib/catalog-images/mirror-admin-service", () => ({ getCatalogImageMirrorAdminOverview: mocks.mirrorOverview }));
 vi.mock("@/lib/catalog-images/discovery-service", () => ({ getCatalogImageDiscoveryOptions: mocks.discoveryOptions }));
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 vi.mock("./actions", () => ({
@@ -16,6 +19,7 @@ vi.mock("./actions", () => ({
   loginCatalogImageAdminAction: vi.fn(),
   rejectCatalogImageAction: vi.fn(),
   cleanupCatalogImagesOverCapAction: vi.fn(),
+  recheckCatalogImageMirrorHealthAction: vi.fn(),
 }));
 
 import Page from "./page";
@@ -34,6 +38,11 @@ describe("Catalog image admin page", () => {
     vi.clearAllMocks();
     mocks.notFound.mockImplementation(() => { throw new Error("NOT_FOUND"); });
     mocks.workbench.mockResolvedValue({ candidates: [candidate], overCapScopes: [] });
+    mocks.mirrorOverview.mockResolvedValue({ items: [{
+      imageId: "primary-1", productName: "小米 15", category: "手机", targetLabel: "Product-level",
+      platform: "淘宝", mirrored: false, bucket: null, healthStatus: "remote_only", lastCheckedAt: null,
+      job: { status: "cancelled", attemptCount: 0, lastErrorCode: "policy_remote_only", leaseExpired: false, retryDue: false, nearAttemptLimit: false },
+    }] });
     mocks.discoveryOptions.mockResolvedValue([
       { id: "xiaomi-15", name: "小米 15", category: "phone", supported: true },
       { id: "clothing-1", name: "基础衬衫", category: "clothing", supported: false },
@@ -44,6 +53,7 @@ describe("Catalog image admin page", () => {
     mocks.access.mockResolvedValue("disabled");
     await expect(Page({ searchParams: Promise.resolve({}) })).rejects.toThrow("NOT_FOUND");
     expect(mocks.workbench).not.toHaveBeenCalled();
+    expect(mocks.mirrorOverview).not.toHaveBeenCalled();
   });
 
   it("shows only the generic secret gate to an unauthorized visitor", async () => {
@@ -53,6 +63,19 @@ describe("Catalog image admin page", () => {
     expect(html).toContain('type="password"');
     expect(html).not.toContain("小米 15");
     expect(mocks.workbench).not.toHaveBeenCalled();
+    expect(mocks.mirrorOverview).not.toHaveBeenCalled();
+  });
+
+  it("shows a redacted mirror health and job overview with explicit shallow and deep checks", async () => {
+    mocks.access.mockResolvedValue("authorized");
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));
+    expect(html).toContain("镜像健康状态");
+    expect(html).toContain("仅远程来源");
+    expect(html).toContain("重新检查");
+    expect(html).toContain("深度校验 Hash");
+    expect(html).toContain("cancelled");
+    expect(html).not.toContain("source_url");
+    expect(html).not.toContain("externalProductId");
   });
 
   it("renders a candidate queue with safe review operations for an authorized admin", async () => {

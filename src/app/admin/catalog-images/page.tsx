@@ -4,6 +4,7 @@ import { CatalogImagePreview } from "@/components/admin/catalog-image-preview";
 import { CatalogImageDiscoveryPanel, type CatalogImageDiscoveryResult } from "@/components/admin/catalog-image-discovery-panel";
 import { getCatalogImageAdminAccess } from "@/lib/admin/catalog-image-auth";
 import { getCatalogImageDiscoveryOptions } from "@/lib/catalog-images/discovery-service";
+import { getCatalogImageMirrorAdminOverview, type CatalogImageMirrorAdminOverview } from "@/lib/catalog-images/mirror-admin-service";
 import { getCatalogImageWorkbench, type CatalogImageWorkbenchCandidate } from "@/lib/catalog-images/workbench-service";
 
 import {
@@ -12,6 +13,7 @@ import {
   cleanupCatalogImagesOverCapAction,
   discoverCatalogImagesAction,
   loginCatalogImageAdminAction,
+  recheckCatalogImageMirrorHealthAction,
   rejectCatalogImageAction,
 } from "./actions";
 
@@ -70,14 +72,55 @@ function OverCapCleanupPanel({ scopes }: { scopes: Awaited<ReturnType<typeof get
   })}</div></section>;
 }
 
+const healthLabels: Record<CatalogImageMirrorAdminOverview["items"][number]["healthStatus"], string> = {
+  healthy: "健康",
+  missing_object: "Storage 对象缺失",
+  metadata_incomplete: "镜像 metadata 不完整",
+  metadata_invalid: "镜像 metadata 非法",
+  hash_mismatch: "内容 Hash 不一致",
+  stale_check: "检查记录已过期",
+  remote_only: "仅远程来源",
+  never_mirrored: "尚未镜像",
+};
+
+function MirrorHealthPanel({ overview }: { overview: CatalogImageMirrorAdminOverview }) {
+  return <section aria-label="镜像健康状态" className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600">Mirror Health</p>
+        <h2 className="mt-1 text-xl font-bold text-slate-950">镜像健康状态</h2>
+        <p className="mt-1 text-sm text-slate-500">默认仅检查对象是否存在；深度校验才下载对象并核对 SHA-256。</p>
+      </div>
+      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">当前主图 {overview.items.length}</span>
+    </div>
+    {overview.items.length ? <div className="mt-4 grid gap-3">{overview.items.map((item) => <article className="rounded-2xl border border-slate-200 p-4" key={item.imageId}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><p className="text-xs font-semibold text-blue-600">{item.category} · {item.platform}</p><h3 className="mt-1 font-bold text-slate-950">{item.productName}</h3><p className="mt-1 text-xs text-slate-500">{item.targetLabel}</p></div>
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">{healthLabels[item.healthStatus]}</span>
+      </div>
+      <dl className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
+        <div><dt className="text-slate-400">Mirror</dt><dd className="mt-0.5 font-semibold text-slate-800">{item.mirrored ? item.bucket : "未镜像"}</dd></div>
+        <div><dt className="text-slate-400">Last checked</dt><dd className="mt-0.5 font-semibold text-slate-800">{formatDate(item.lastCheckedAt)}</dd></div>
+        <div><dt className="text-slate-400">Job</dt><dd className="mt-0.5 font-semibold text-slate-800">{item.job ? `${item.job.status} · ${item.job.attemptCount} 次${item.job.lastErrorCode ? ` · ${item.job.lastErrorCode}` : ""}` : "暂无"}</dd></div>
+      </dl>
+      {item.job && (item.job.leaseExpired || item.job.retryDue || item.job.nearAttemptLimit) ? <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">{[item.job.leaseExpired ? "Processing lease 已超时" : null, item.job.retryDue ? "Retry 已到执行时间" : null, item.job.nearAttemptLimit ? "Attempt 接近上限" : null].filter(Boolean).join(" · ")}</p> : null}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <form action={recheckCatalogImageMirrorHealthAction}><input name="imageId" type="hidden" value={item.imageId}/><input name="mode" type="hidden" value="shallow"/><button className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50" type="submit">重新检查</button></form>
+        <form action={recheckCatalogImageMirrorHealthAction}><input name="imageId" type="hidden" value={item.imageId}/><input name="mode" type="hidden" value="deep"/><button className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="submit">深度校验 Hash</button></form>
+      </div>
+    </article>)}</div> : <p className="mt-4 rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">当前没有 approved primary 可检查。</p>}
+  </section>;
+}
+
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const access = await getCatalogImageAdminAccess();
   if (access === "disabled") notFound();
   const params = await searchParams;
   if (access !== "authorized") return <LoginGate failed={params.auth === "failed"}/>;
-  const [workbench, options] = await Promise.all([
+  const [workbench, mirrorOverview, options] = await Promise.all([
     getCatalogImageWorkbench(),
+    getCatalogImageMirrorAdminOverview(),
     getCatalogImageDiscoveryOptions(),
   ]);
-  return <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8"><div className="mx-auto max-w-6xl"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">PriceAI Internal</p><h1 className="mt-2 text-3xl font-bold text-slate-950">Catalog 图片审核</h1><p className="mt-2 text-sm text-slate-500">只处理待人工确认的 Candidate；消费者页面不会读取本队列。</p></div><span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700">待审核 {workbench.candidates.length}</span></div>{params.result ? <p className={`mt-5 rounded-xl px-4 py-3 text-sm ${params.result === "success" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{params.result === "success" ? "审核操作已完成。" : "审核操作未完成，请刷新后重试。"}</p> : null}{params.cleanup ? <p className={`mt-5 rounded-xl px-4 py-3 text-sm ${params.cleanup === "success" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{params.cleanup === "success" ? `超额候选整理完成：处理 ${safeCount(params.processed)} 条，当前 active ${safeCount(params.active)} 条。` : "超额候选整理未完成，请刷新后重试。"}</p> : null}<CatalogImageDiscoveryPanel action={discoverCatalogImagesAction} options={options} result={discoveryResult(params)}/><OverCapCleanupPanel scopes={workbench.overCapScopes}/><section aria-label="Candidate 审核队列" className="mt-6 grid gap-5">{workbench.candidates.length ? workbench.candidates.map((candidate) => <CandidateCard candidate={candidate} key={candidate.imageId}/>) : <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center"><h2 className="text-lg font-bold text-slate-900">当前没有待审核图片</h2><p className="mt-2 text-sm text-slate-500">新的 matched 平台图片进入 Candidate 后会显示在这里。</p></div>}</section></div></main>;
+  return <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8"><div className="mx-auto max-w-6xl"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">PriceAI Internal</p><h1 className="mt-2 text-3xl font-bold text-slate-950">Catalog 图片审核</h1><p className="mt-2 text-sm text-slate-500">只处理待人工确认的 Candidate；消费者页面不会读取本队列。</p></div><span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700">待审核 {workbench.candidates.length}</span></div>{params.result ? <p className={`mt-5 rounded-xl px-4 py-3 text-sm ${params.result === "success" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{params.result === "success" ? "审核操作已完成。" : "审核操作未完成，请刷新后重试。"}</p> : null}{params.cleanup ? <p className={`mt-5 rounded-xl px-4 py-3 text-sm ${params.cleanup === "success" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{params.cleanup === "success" ? `超额候选整理完成：处理 ${safeCount(params.processed)} 条，当前 active ${safeCount(params.active)} 条。` : "超额候选整理未完成，请刷新后重试。"}</p> : null}{params.mirrorHealth ? <p className={`mt-5 rounded-xl px-4 py-3 text-sm ${params.mirrorHealth === "success" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{params.mirrorHealth === "success" ? "镜像健康检查已完成。" : "镜像健康检查未完成，请稍后重试。"}</p> : null}<CatalogImageDiscoveryPanel action={discoverCatalogImagesAction} options={options} result={discoveryResult(params)}/><MirrorHealthPanel overview={mirrorOverview}/><OverCapCleanupPanel scopes={workbench.overCapScopes}/><section aria-label="Candidate 审核队列" className="mt-6 grid gap-5">{workbench.candidates.length ? workbench.candidates.map((candidate) => <CandidateCard candidate={candidate} key={candidate.imageId}/>) : <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center"><h2 className="text-lg font-bold text-slate-900">当前没有待审核图片</h2><p className="mt-2 text-sm text-slate-500">新的 matched 平台图片进入 Candidate 后会显示在这里。</p></div>}</section></div></main>;
 }

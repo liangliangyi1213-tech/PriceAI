@@ -16,6 +16,7 @@ import {
 import { executeCatalogImageAdminOperation, type CatalogImageAdminOperation } from "@/lib/catalog-images/admin-service";
 import { executeCatalogImageDiscoveryAdminOperation } from "@/lib/catalog-images/discovery-admin-service";
 import type { CatalogImageDiscoveryReport } from "@/lib/catalog-images/discovery-service";
+import { executeCatalogImageMirrorHealthAdminOperation } from "@/lib/catalog-images/mirror-health-admin-service";
 import { cleanupCatalogImageCandidateOverCap } from "@/lib/catalog-images/over-cap-cleanup-service";
 
 const WORKBENCH_PATH = "/admin/catalog-images";
@@ -132,6 +133,21 @@ export async function cleanupCatalogImagesOverCapAction(
       active: String(result.activeAfter),
     });
     location = `${WORKBENCH_PATH}?${params.toString()}`;
+  } catch {}
+  redirect(location);
+}
+
+export async function recheckCatalogImageMirrorHealthAction(formData: FormData): Promise<never> {
+  let location = `${WORKBENCH_PATH}?mirrorHealth=failed`;
+  try {
+    await executeCatalogImageMirrorHealthAdminOperation({
+      authorized: await getCatalogImageAdminAccess() === "authorized",
+      sameOrigin: await sameOrigin(),
+      imageId: String(formData.get("imageId") ?? ""),
+      mode: formData.get("mode") === "deep" ? "deep" : "shallow",
+    });
+    revalidatePath(WORKBENCH_PATH);
+    location = `${WORKBENCH_PATH}?mirrorHealth=success`;
   } catch {}
   redirect(location);
 }

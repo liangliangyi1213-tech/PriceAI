@@ -150,6 +150,28 @@ export class SupabaseCatalogImageRepository {
     }
   }
 
+  async touchMirrorLastCheckedAt(input: Readonly<{
+    imageId: string;
+    storageBucket: string;
+    storageObjectPath: string;
+    checkedAt: string;
+  }>): Promise<void> {
+    try {
+      const { data, error } = await getCatalogSyncWriteClient()
+        .from("product_images")
+        .update({ last_checked_at: input.checkedAt })
+        .eq("id", input.imageId)
+        .eq("storage_bucket", input.storageBucket)
+        .eq("storage_object_path", input.storageObjectPath)
+        .select("id")
+        .maybeSingle();
+      if (error || !data) throw error ?? new CatalogImageRepositoryError();
+    } catch (error) {
+      if (error instanceof CatalogImageRepositoryError) throw error;
+      throw new CatalogImageRepositoryError();
+    }
+  }
+
   async getRejectedSourceSuppression(
     input: CreateCatalogImageCandidate,
     now = new Date(),

@@ -16,8 +16,7 @@ const extensionByContentType = {
   "image/webp": "webp",
 } as const;
 
-function expectedStoragePath(image: CatalogImage): string | null {
-  if (image.status !== "approved" || image.role !== "primary") return null;
+export function getCanonicalCatalogImageStoragePath(image: CatalogImage): string | null {
   if (image.storageBucket !== CATALOG_IMAGE_BUCKET || !image.storageObjectPath
     || !image.contentHash || !/^[a-f0-9]{64}$/.test(image.contentHash)
     || !image.contentType || !image.width || !image.height || image.width <= 0 || image.height <= 0
@@ -39,11 +38,16 @@ function expectedStoragePath(image: CatalogImage): string | null {
   }
 }
 
+export function getValidCatalogImageStoragePath(image: CatalogImage): string | null {
+  if (image.status !== "approved" || image.role !== "primary") return null;
+  return getCanonicalCatalogImageStoragePath(image);
+}
+
 export function resolveCatalogImageStorageUrl(
   image: CatalogImage,
   storage?: CatalogStoragePublicUrlClient,
 ): string | null {
-  const path = expectedStoragePath(image);
+  const path = getValidCatalogImageStoragePath(image);
   if (!path) return null;
   try {
     const storageClient = storage ?? getSupabase().storage.from(CATALOG_IMAGE_BUCKET);

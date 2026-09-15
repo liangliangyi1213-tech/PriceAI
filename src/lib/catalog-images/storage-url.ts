@@ -3,11 +3,31 @@ export const CATALOG_IMAGE_BUCKET = "catalog-images";
 const internalId = "[A-Za-z0-9][A-Za-z0-9_-]{0,127}";
 const contentHash = "[a-f0-9]{64}";
 const catalogObjectPath = new RegExp(
-  `^products/${internalId}/(?:variants/${internalId}/)?${internalId}/${contentHash}\\.(?:jpg|png|webp)$`,
+  `^products/(${internalId})/(?:variants/(${internalId})/)?(${internalId})/(${contentHash})\\.(jpg|png|webp)$`,
 );
+
+export type CatalogImageStorageObjectIdentity = Readonly<{
+  productId: string;
+  variantId: string | null;
+  imageId: string;
+  contentHash: string;
+  extension: "jpg" | "png" | "webp";
+}>;
 
 export function isCatalogImageStorageObjectPath(value: string): boolean {
   return catalogObjectPath.test(value);
+}
+
+export function parseCatalogImageStorageObjectPath(value: string): CatalogImageStorageObjectIdentity | null {
+  const match = catalogObjectPath.exec(value);
+  if (!match) return null;
+  return {
+    productId: match[1],
+    variantId: match[2] ?? null,
+    imageId: match[3],
+    contentHash: match[4],
+    extension: match[5] as CatalogImageStorageObjectIdentity["extension"],
+  };
 }
 
 export function isCatalogImageStoragePublicUrl(value: string, expectedObjectPath?: string): boolean {

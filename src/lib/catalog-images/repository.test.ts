@@ -84,6 +84,26 @@ describe("SupabaseCatalogImageRepository", () => {
     expect(inProducts).toHaveBeenCalledWith("product_id", ["product-1", "product-2"]);
   });
 
+  it("updates only last_checked_at while guarding the existing Storage identity", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: { id: "image-1" }, error: null });
+    const select = vi.fn(() => ({ maybeSingle }));
+    const eqPath = vi.fn(() => ({ select }));
+    const eqBucket = vi.fn(() => ({ eq: eqPath }));
+    const eqId = vi.fn(() => ({ eq: eqBucket }));
+    const update = vi.fn(() => ({ eq: eqId }));
+    mocks.getCatalogSyncWriteClient.mockReturnValue({ from: vi.fn(() => ({ update })) });
+
+    await new SupabaseCatalogImageRepository().touchMirrorLastCheckedAt({
+      imageId: "image-1", storageBucket: "catalog-images",
+      storageObjectPath: "products/product-1/image-1/hash.jpg",
+      checkedAt: "2026-09-15T00:00:00.000Z",
+    });
+    expect(update).toHaveBeenCalledWith({ last_checked_at: "2026-09-15T00:00:00.000Z" });
+    expect(eqId).toHaveBeenCalledWith("id", "image-1");
+    expect(eqBucket).toHaveBeenCalledWith("storage_bucket", "catalog-images");
+    expect(eqPath).toHaveBeenCalledWith("storage_object_path", "products/product-1/image-1/hash.jpg");
+  });
+
   it("creates a candidate without approving or assigning it as primary", async () => {
     const single = vi.fn().mockResolvedValue({
       data: { ...approvedRow, status: "candidate", role: "gallery", is_primary: false, verified_at: null },
