@@ -77,4 +77,26 @@ describe("server catalog image resolver", () => {
     ]);
     expect(repository.getApprovedPrimariesForProducts).toHaveBeenCalledWith(["product-1", "product-2"]);
   });
+
+  it("batch constructs storage URLs without adding repository queries", async () => {
+    const mirrored = {
+      ...approvedProductImage,
+      contentHash: "b".repeat(64), storageBucket: "catalog-images",
+      storageObjectPath: `products/product-1/image-1/${"b".repeat(64)}.jpg`,
+      contentType: "image/jpeg" as const, width: 1200, height: 900,
+      mirroredAt: "2026-09-15T00:00:00.000Z", lastCheckedAt: "2026-09-15T00:00:00.000Z",
+    };
+    const repository = {
+      getApprovedPrimariesForProducts: vi.fn().mockResolvedValue([mirrored]),
+    };
+    const storageUrlForImage = vi.fn().mockReturnValue("https://project.supabase.co/storage/v1/object/public/catalog-images/products/product-1/image-1/content.jpg");
+
+    const results = await resolveCatalogImagesForProducts([
+      { productId: "product-1", variantId: null, legacyImage: "/legacy.jpg" },
+      { productId: "product-1", variantId: null, legacyImage: "/legacy.jpg" },
+    ], repository, storageUrlForImage);
+
+    expect(results.every(({ resolution }) => resolution.source === "approved_product_storage")).toBe(true);
+    expect(repository.getApprovedPrimariesForProducts).toHaveBeenCalledTimes(1);
+  });
 });

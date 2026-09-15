@@ -6,8 +6,9 @@ import { getCatalogSyncWriteClient } from "@/lib/catalog-sync/write-client";
 
 import type { MirrorContentType } from "./mirror-image-metadata";
 import { asMirrorError, CatalogImageMirrorError } from "./mirror-service-types";
+import { CATALOG_IMAGE_BUCKET } from "./storage-url";
 
-export const CATALOG_IMAGE_BUCKET = "catalog-images";
+export { CATALOG_IMAGE_BUCKET } from "./storage-url";
 
 type InternalPathInput = Readonly<{
   productId: string;

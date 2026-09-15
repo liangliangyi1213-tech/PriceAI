@@ -1,6 +1,9 @@
 import { selectProviderImageSource, type LiveImagePlatform } from "@/lib/images/live-listing-image";
 
 import type { CatalogImage, CatalogImageResolution } from "./types";
+import { isCatalogImageStoragePublicUrl } from "./storage-url";
+
+export type CatalogStorageUrlResolver = (image: CatalogImage) => string | null;
 
 const noCatalogImage = (): CatalogImageResolution => ({
   kind: "none",
@@ -37,33 +40,47 @@ export function resolveCatalogImage({
   variantId,
   images,
   legacyImage,
+  storageUrlForImage,
 }: {
   productId: string;
   variantId: string | null;
   images: readonly CatalogImage[];
   legacyImage: string | null | undefined;
+  storageUrlForImage?: CatalogStorageUrlResolver;
 }): CatalogImageResolution {
-  const approvedPrimaries = images.flatMap((image) => {
-    if (image.productId !== productId || image.status !== "approved" || image.role !== "primary") return [];
-    const safeUrl = approvedImageUrl(image);
-    return safeUrl ? [{ image, safeUrl }] : [];
-  });
+  const approvedPrimaries = images.filter((image) =>
+    image.productId === productId && image.status === "approved" && image.role === "primary",
+  );
   const variantPrimary = variantId
-    ? approvedPrimaries.find(({ image }) => image.targetType === "variant" && image.variantId === variantId)
+    ? approvedPrimaries.find((image) => image.targetType === "variant" && image.variantId === variantId)
     : undefined;
-  const productPrimary = approvedPrimaries.find(({ image }) =>
+  const productPrimary = approvedPrimaries.find((image) =>
     image.targetType === "product" && image.variantId === null,
   );
-  const selected = variantPrimary ?? productPrimary;
 
-  if (selected) {
-    return {
-      kind: "image",
-      source: selected.image.targetType === "variant" ? "approved_variant" : "approved_product",
-      url: selected.safeUrl,
-      imageId: selected.image.id,
-      platform: selected.image.platform,
-    };
+  for (const selected of [variantPrimary, productPrimary]) {
+    if (!selected) continue;
+    const target = selected.targetType === "variant" ? "approved_variant" : "approved_product";
+    const storageUrl = storageUrlForImage?.(selected) ?? null;
+    if (storageUrl) {
+      return {
+        kind: "image",
+        source: `${target}_storage`,
+        url: storageUrl,
+        imageId: selected.id,
+        platform: selected.platform,
+      };
+    }
+    const remoteUrl = approvedImageUrl(selected);
+    if (remoteUrl) {
+      return {
+        kind: "image",
+        source: target,
+        url: remoteUrl,
+        imageId: selected.id,
+        platform: selected.platform,
+      };
+    }
   }
   if (isValidLegacyImage(legacyImage)) {
     return { kind: "image", source: "legacy", url: legacyImage.trim(), imageId: null, platform: null };
@@ -77,6 +94,9 @@ export function resolveRenderableCatalogImage(
 ): CatalogImageResolution {
   if (resolution.kind === "none" || resolution.url === failedUrl) return noCatalogImage();
   if (resolution.source === "legacy") return isValidLegacyImage(resolution.url) ? resolution : noCatalogImage();
+  if (resolution.source === "approved_product_storage" || resolution.source === "approved_variant_storage") {
+    return isCatalogImageStoragePublicUrl(resolution.url) ? resolution : noCatalogImage();
+  }
   if (!resolution.platform) return noCatalogImage();
   const platform: LiveImagePlatform | null = resolution.platform === "taobao"
     ? "taobao"

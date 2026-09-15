@@ -38,6 +38,61 @@ function image(overrides: Partial<CatalogImage> = {}): CatalogImage {
 }
 
 describe("catalog image resolver", () => {
+  const storageUrl = "https://project.supabase.co/storage/v1/object/public/catalog-images/products/product-1/image-product/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.jpg";
+
+  it("prefers product storage over the same approved primary remote source", () => {
+    const result = resolveCatalogImage({
+      productId: "product-1",
+      variantId: null,
+      images: [image()],
+      legacyImage: "/legacy-product.jpg",
+      storageUrlForImage: () => storageUrl,
+    });
+
+    expect(result).toEqual({
+      kind: "image", source: "approved_product_storage", url: storageUrl,
+      imageId: "image-product", platform: "taobao",
+    });
+  });
+
+  it("falls back to the same approved primary remote source when storage is invalid", () => {
+    expect(resolveCatalogImage({
+      productId: "product-1", variantId: null, images: [image()], legacyImage: "/legacy-product.jpg",
+      storageUrlForImage: () => null,
+    })).toEqual({
+      kind: "image", source: "approved_product", url: "https://img.alicdn.com/product.jpg",
+      imageId: "image-product", platform: "taobao",
+    });
+  });
+
+  it("prefers variant storage, then variant remote, before any product primary source", () => {
+    const variant = image({
+      id: "image-variant", variantId: "variant-1", targetType: "variant",
+      sourceUrl: "https://img.alicdn.com/variant.jpg",
+    });
+    const variantStorage = storageUrl.replace("image-product", "variants/variant-1/image-variant");
+    expect(resolveCatalogImage({
+      productId: "product-1", variantId: "variant-1", images: [image(), variant], legacyImage: "/legacy.jpg",
+      storageUrlForImage: (candidate) => candidate.id === "image-variant" ? variantStorage : storageUrl,
+    })).toMatchObject({ source: "approved_variant_storage", url: variantStorage, imageId: "image-variant" });
+
+    expect(resolveCatalogImage({
+      productId: "product-1", variantId: "variant-1", images: [image(), variant], legacyImage: "/legacy.jpg",
+      storageUrlForImage: (candidate) => candidate.id === "image-product" ? storageUrl : null,
+    })).toMatchObject({ source: "approved_variant", url: "https://img.alicdn.com/variant.jpg" });
+  });
+
+  it("falls back from an unusable variant primary to product storage", () => {
+    const variant = image({
+      id: "image-variant", variantId: "variant-1", targetType: "variant",
+      sourceUrl: "https://untrusted.example/variant.jpg",
+    });
+    expect(resolveCatalogImage({
+      productId: "product-1", variantId: "variant-1", images: [image(), variant], legacyImage: "/legacy.jpg",
+      storageUrlForImage: (candidate) => candidate.id === "image-product" ? storageUrl : null,
+    })).toMatchObject({ source: "approved_product_storage", imageId: "image-product" });
+  });
+
   it("prefers an approved variant primary over the product primary and legacy image", () => {
     const result = resolveCatalogImage({
       productId: "product-1",
@@ -173,5 +228,18 @@ describe("catalog image resolver", () => {
       imageId: null,
       platform: null,
     });
+  });
+
+  it("accepts only a server-resolved catalog storage URL for rendering", () => {
+    const resolution = {
+      kind: "image" as const,
+      source: "approved_product_storage" as const,
+      url: storageUrl,
+      imageId: "image-product",
+      platform: "taobao",
+    };
+    expect(resolveRenderableCatalogImage(resolution, null)).toEqual(resolution);
+    expect(resolveRenderableCatalogImage({ ...resolution, url: "https://untrusted.example/image.jpg" }, null).kind)
+      .toBe("none");
   });
 });

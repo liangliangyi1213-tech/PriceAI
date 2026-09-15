@@ -60,7 +60,12 @@ export type CatalogImagePrimaryEvent = Readonly<{
 
 export type CatalogImageResolution = Readonly<{
   kind: "image";
-  source: "approved_variant" | "approved_product" | "legacy";
+  source:
+    | "approved_variant_storage"
+    | "approved_variant"
+    | "approved_product_storage"
+    | "approved_product"
+    | "legacy";
   url: string;
   imageId: string | null;
   platform: string | null;
