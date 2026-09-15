@@ -23,6 +23,10 @@ import type {
   PrimaryPromotionResult,
   PromotePrimaryInput,
 } from "./review-service";
+import type {
+  CatalogImageMirrorContext,
+  CatalogImageMirrorMetadataUpdate,
+} from "./mirror-service-types";
 
 const allowedEvidenceMatchers = new Set([
   "taobao_phone_strict", "pinduoduo_phone_strict", "catalog_sync_deterministic",
@@ -88,6 +92,64 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 export class SupabaseCatalogImageRepository {
+  async getMirrorContext(imageId: string): Promise<CatalogImageMirrorContext | null> {
+    const normalizedImageId = imageId.trim();
+    if (!normalizedImageId) throw new CatalogImageRepositoryError();
+    try {
+      const client = getCatalogSyncWriteClient();
+      const { data, error } = await client.from("product_images").select("*").eq("id", normalizedImageId).maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      const image = mapProductImageRow(data as ProductImageRow);
+      if (!image) throw new CatalogImageRepositoryError();
+      const { data: product, error: productError } = await client
+        .from("products").select("id, category").eq("id", image.productId).maybeSingle();
+      if (productError) throw productError;
+      if (!product || typeof product.category !== "string") return null;
+      let variantBelongsToProduct = image.targetType === "product" && image.variantId === null;
+      if (image.targetType === "variant" && image.variantId) {
+        const { data: variant, error: variantError } = await client
+          .from("product_variants").select("id").eq("id", image.variantId).eq("product_id", image.productId).maybeSingle();
+        if (variantError) throw variantError;
+        variantBelongsToProduct = Boolean(variant);
+      }
+      return { image, category: product.category, variantBelongsToProduct };
+    } catch (error) {
+      if (error instanceof CatalogImageRepositoryError) throw error;
+      throw new CatalogImageRepositoryError();
+    }
+  }
+
+  async updateMirrorMetadata(input: CatalogImageMirrorMetadataUpdate): Promise<void> {
+    try {
+      let query = getCatalogSyncWriteClient()
+        .from("product_images")
+        .update({
+          storage_bucket: input.storageBucket,
+          storage_object_path: input.storageObjectPath,
+          content_hash: input.contentHash,
+          content_type: input.contentType,
+          width: input.width,
+          height: input.height,
+          mirrored_at: input.mirroredAt,
+          last_checked_at: input.lastCheckedAt,
+        })
+        .eq("id", input.imageId)
+        .eq("product_id", input.expectedProductId)
+        .eq("target_type", input.expectedTargetType)
+        .eq("platform", input.expectedPlatform)
+        .eq("source_url_hash", input.expectedSourceUrlHash);
+      query = input.expectedVariantId === null
+        ? query.is("variant_id", null)
+        : query.eq("variant_id", input.expectedVariantId);
+      const { data, error } = await query.select("id").maybeSingle();
+      if (error || !data) throw error ?? new CatalogImageRepositoryError();
+    } catch (error) {
+      if (error instanceof CatalogImageRepositoryError) throw error;
+      throw new CatalogImageRepositoryError();
+    }
+  }
+
   async getRejectedSourceSuppression(
     input: CreateCatalogImageCandidate,
     now = new Date(),
