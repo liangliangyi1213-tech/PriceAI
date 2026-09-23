@@ -3,6 +3,7 @@ import "server-only";
 import { resolveCatalogImage } from "./resolver";
 import { SupabaseCatalogImageRepository } from "./repository";
 import { resolveCatalogImageStorageUrl } from "./storage-resolver";
+import { defaultCatalogImageRenderSourceRegistry, type CatalogImageRenderSourceRegistry } from "./catalog-image-render-source";
 import type { CatalogStorageUrlResolver } from "./resolver";
 import type { CatalogImage, CatalogImageResolution } from "./types";
 
@@ -34,15 +35,17 @@ export async function resolveCatalogImageForProduct(
   },
   repository: ApprovedImageReader = new SupabaseCatalogImageRepository(),
   storageUrlForImage: CatalogStorageUrlResolver = resolveCatalogImageStorageUrl,
+  sourceRegistry: CatalogImageRenderSourceRegistry = defaultCatalogImageRenderSourceRegistry,
 ): Promise<CatalogImageResolution> {
   const images = await repository.getApprovedPrimaries(input.productId);
-  return resolveCatalogImage({ ...input, images, storageUrlForImage });
+  return resolveCatalogImage({ ...input, images, storageUrlForImage, sourceRegistry });
 }
 
 export async function resolveCatalogImagesForProducts(
   inputs: readonly CatalogImageResolutionInput[],
   repository: ApprovedImagesBatchReader = new SupabaseCatalogImageRepository(),
   storageUrlForImage: CatalogStorageUrlResolver = resolveCatalogImageStorageUrl,
+  sourceRegistry: CatalogImageRenderSourceRegistry = defaultCatalogImageRenderSourceRegistry,
 ): Promise<CatalogImageResolutionResult[]> {
   if (inputs.length === 0) return [];
   const productIds = [...new Set(inputs.map((input) => input.productId))];
@@ -50,6 +53,6 @@ export async function resolveCatalogImagesForProducts(
   return inputs.map((input) => ({
     productId: input.productId,
     variantId: input.variantId,
-    resolution: resolveCatalogImage({ ...input, images, storageUrlForImage }),
+    resolution: resolveCatalogImage({ ...input, images, storageUrlForImage, sourceRegistry }),
   }));
 }

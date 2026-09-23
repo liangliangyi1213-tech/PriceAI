@@ -5,6 +5,13 @@ import type { PinduoduoGoods } from "@/lib/platforms/pinduoduo-client";
 import type { LiveTaobaoOffer } from "@/lib/platforms/taobao-client";
 import type { Product, ProductVariant } from "@/types/catalog";
 
+import {
+  defaultCatalogImageSourceRegistry,
+  isCatalogImageMatcherAllowed,
+  isCatalogImageSourceKindAllowed,
+  selectCatalogImageSource,
+  type CatalogImageSourceRegistry,
+} from "./catalog-image-source";
 import { SupabaseCatalogImageRepository } from "./repository";
 import type { CatalogImageRejectedSourceSuppression } from "./rejected-source-suppression";
 import type {
@@ -32,7 +39,14 @@ export type CatalogImageCandidateMatch =
 
 export type CatalogImageCandidateSource =
   | Readonly<{ platform: "taobao"; listing: LiveTaobaoOffer }>
-  | Readonly<{ platform: "pinduoduo"; listing: PinduoduoGoods }>;
+  | Readonly<{ platform: "pinduoduo"; listing: PinduoduoGoods }>
+  | Readonly<{
+    platform: "priceai_fixture";
+    externalProductId: string;
+    externalVariantId: string | null;
+    sourceKind: "owned_fixture";
+    sourceUrl: string;
+  }>;
 
 export type CatalogImageCandidateOutcome = CreateCatalogImageCandidateResult | Readonly<{
   status: "skipped";
@@ -51,6 +65,7 @@ const allowedMatchers = new Set<CatalogImageMatcher>([
   "taobao_phone_strict",
   "pinduoduo_phone_strict",
   "catalog_sync_deterministic",
+  "priceai_fixture_deterministic",
 ]);
 const allowedSignals = new Set<CatalogImageMatchSignal>([
   "brand", "model", "category", "storage", "color", "region", "condition",
@@ -89,6 +104,18 @@ function candidateSource(source: CatalogImageCandidateSource) {
     } : null;
   }
 
+  if (source.platform === "priceai_fixture") {
+    const externalProductId = source.externalProductId.trim();
+    if (!externalProductId) return null;
+    return {
+      platform: source.platform,
+      externalProductId,
+      externalVariantId: source.externalVariantId?.trim() || null,
+      sourceKind: source.sourceKind,
+      sourceUrl: source.sourceUrl,
+    };
+  }
+
   const externalProductId = source.listing.goodsId.trim();
   if (!externalProductId) return null;
   const selected = selectProviderImageSource("pinduoduo", [
@@ -108,7 +135,7 @@ function candidateSource(source: CatalogImageCandidateSource) {
 export async function createCatalogImageCandidate(
   input: Readonly<{ source: CatalogImageCandidateSource; match: CatalogImageCandidateMatch }>,
   repository: CatalogImageCandidateRepository = new SupabaseCatalogImageRepository(),
-  options: Readonly<{ allowCreate?: boolean }> = {},
+  options: Readonly<{ allowCreate?: boolean; sourceRegistry?: CatalogImageSourceRegistry }> = {},
 ): Promise<CatalogImageCandidateOutcome> {
   if (input.match.status !== "matched") {
     return { status: "skipped", reason: input.match.status };
@@ -126,12 +153,23 @@ export async function createCatalogImageCandidate(
   if (!source) {
     const hasIdentity = input.source.platform === "taobao"
       ? Boolean(input.source.listing.itemId.trim())
-      : Boolean(input.source.listing.goodsId.trim());
+      : input.source.platform === "pinduoduo"
+        ? Boolean(input.source.listing.goodsId.trim())
+        : Boolean(input.source.externalProductId.trim());
     return { status: "skipped", reason: hasIdentity ? "invalid_image" : "invalid_identity" };
+  }
+  const sourceRegistry = options.sourceRegistry ?? defaultCatalogImageSourceRegistry;
+  const selectedSource = selectCatalogImageSource(source.platform, source.sourceUrl, sourceRegistry);
+  if (!selectedSource || !isCatalogImageSourceKindAllowed(source.platform, source.sourceKind, sourceRegistry)) {
+    return { status: "skipped", reason: "invalid_image" };
+  }
+  if (!isCatalogImageMatcherAllowed(source.platform, input.match.evidence.matcher, sourceRegistry)) {
+    return { status: "skipped", reason: "invalid_match" };
   }
   const candidate = {
     ...target,
     ...source,
+    sourceUrl: selectedSource.url,
     matchConfidence: input.match.matchConfidence,
     matchEvidence: {
       schemaVersion: 1,

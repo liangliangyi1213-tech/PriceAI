@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { LiveListingImage } from "@/lib/images/live-listing-image";
 
+import { createCatalogImageSourceRegistry } from "./catalog-image-source";
+
 import {
   createMirrorPolicyRegistry,
   defaultMirrorPolicyRegistry,
@@ -65,6 +67,32 @@ describe("Catalog image mirror policy registry", () => {
 
 describe("Catalog image mirror eligibility", () => {
   const registry = createMirrorPolicyRegistry([allowedTaobaoPolicy]);
+
+  it("admits an owned fixture only when mirror and source policies are both explicitly injected", () => {
+    const fixturePolicy: MirrorPolicy = {
+      ...allowedTaobaoPolicy,
+      platform: "priceai_fixture",
+      category: "test-fixtures",
+      authorizationBasis: "priceai_owned_test_asset",
+    };
+    const fixtureSources = createCatalogImageSourceRegistry([
+      { platform: "priceai_fixture", allowedHosts: ["fixture.assets.priceai.test"] },
+    ]);
+
+    expect(evaluateCatalogImageMirrorEligibility({
+      image: {
+        ...approvedPrimary,
+        platform: "priceai_fixture",
+        sourceUrl: "https://fixture.assets.priceai.test/owned-image.png",
+      },
+      category: "test-fixtures",
+      sourceRegistry: fixtureSources,
+    }, createMirrorPolicyRegistry([fixturePolicy]))).toMatchObject({
+      eligible: true,
+      reason: "eligible",
+      policy: fixturePolicy,
+    });
+  });
 
   it("allows only an approved primary after explicit policy authorization", () => {
     expect(evaluateCatalogImageMirrorEligibility({ image: approvedPrimary, category: "phones" }, registry))

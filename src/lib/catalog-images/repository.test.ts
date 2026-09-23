@@ -137,6 +137,31 @@ describe("SupabaseCatalogImageRepository", () => {
     }));
   });
 
+  it("persists an explicitly approved PriceAI fixture matcher without impersonating a marketplace", async () => {
+    const single = vi.fn().mockResolvedValue({
+      data: { ...approvedRow, platform: "priceai_fixture", status: "candidate", role: "gallery", is_primary: false, verified_at: null },
+      error: null,
+    });
+    const insert = vi.fn(() => ({ select: vi.fn(() => ({ single })) }));
+    mocks.getCatalogSyncWriteClient.mockReturnValue({ from: vi.fn(() => ({ insert })) });
+
+    await expect(new SupabaseCatalogImageRepository().createCandidateIfAbsent({
+      productId: "product-1", variantId: null, targetType: "product",
+      platform: "priceai_fixture", externalProductId: "owned-fixture-image-1", externalVariantId: null,
+      sourceKind: "owned_fixture", sourceUrl: "https://fixture.assets.priceai.test/owned-image.png",
+      matchConfidence: 1,
+      matchEvidence: {
+        schemaVersion: 1, matcher: "priceai_fixture_deterministic", matchLevel: "product", signals: ["category"],
+      },
+    })).resolves.toEqual({ status: "created", imageId: "image-1" });
+
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+      platform: "priceai_fixture",
+      source_kind: "owned_fixture",
+      match_evidence: expect.objectContaining({ matcher: "priceai_fixture_deterministic" }),
+    }));
+  });
+
   it("counts only active Candidates for one Product and platform", async () => {
     const eqStatus = vi.fn().mockResolvedValue({ count: 3, error: null });
     const eqPlatform = vi.fn(() => ({ eq: eqStatus }));

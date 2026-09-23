@@ -2,8 +2,13 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { selectProviderImageSource, type LiveImagePlatform } from "@/lib/images/live-listing-image";
-
+import {
+  defaultCatalogImageSourceRegistry,
+  isCatalogImageMatcherAllowed,
+  isCatalogImageSourceKindAllowed,
+  selectCatalogImageSource,
+  type CatalogImageSourceRegistry,
+} from "./catalog-image-source";
 import { SupabaseCatalogImageRepository } from "./repository";
 import type { CatalogImage, CatalogImageMatchSignal, CatalogImageMatcher } from "./types";
 
@@ -63,7 +68,7 @@ export interface CatalogImageReviewRepository {
 }
 
 const allowedMatchers = new Set<CatalogImageMatcher>([
-  "taobao_phone_strict", "pinduoduo_phone_strict", "catalog_sync_deterministic",
+  "taobao_phone_strict", "pinduoduo_phone_strict", "catalog_sync_deterministic", "priceai_fixture_deterministic",
 ]);
 const allowedSignals = new Set<CatalogImageMatchSignal>([
   "brand", "model", "category", "storage", "color", "region", "condition",
@@ -74,7 +79,10 @@ function nonEmpty(value: string, maxLength: number): boolean {
   return length > 0 && length <= maxLength;
 }
 
-function validEvidence(image: CatalogImage): image is CatalogImage & { matchEvidence: Record<string, unknown>; matchConfidence: number } {
+function validEvidence(
+  image: CatalogImage,
+  sourceRegistry: CatalogImageSourceRegistry,
+): image is CatalogImage & { matchEvidence: Record<string, unknown>; matchConfidence: number } {
   const evidence = image.matchEvidence;
   if (!evidence || image.matchConfidence === null || !Number.isFinite(image.matchConfidence)
     || image.matchConfidence < 0 || image.matchConfidence > 1) return false;
@@ -82,50 +90,42 @@ function validEvidence(image: CatalogImage): image is CatalogImage & { matchEvid
   const signals = evidence.signals;
   return evidence.schemaVersion === 1
     && allowedMatchers.has(matcher as CatalogImageMatcher)
+    && isCatalogImageMatcherAllowed(image.platform, matcher as CatalogImageMatcher, sourceRegistry)
     && evidence.matchLevel === image.targetType
     && Array.isArray(signals)
     && signals.length > 0
     && signals.every((signal) => typeof signal === "string" && allowedSignals.has(signal as CatalogImageMatchSignal));
 }
 
-function platformImageType(image: CatalogImage): LiveImagePlatform | null {
-  if (image.platform === "taobao") return "taobao";
-  if (image.platform === "pdd") return "pinduoduo";
-  return null;
-}
-
-function validSource(image: CatalogImage): CatalogImageReviewFailure | null {
-  const platform = platformImageType(image);
-  const allowedKinds = image.platform === "taobao"
-    ? new Set(["pict_url", "small_images_0"])
-    : image.platform === "pdd"
-      ? new Set(["goods_image_url", "goods_thumbnail_url"])
-      : new Set<string>();
-  if (!platform || !allowedKinds.has(image.sourceKind)) return "source_not_allowed";
-  const selected = selectProviderImageSource(platform, [{ kind: image.sourceKind, url: image.sourceUrl }]);
+function validSource(image: CatalogImage, sourceRegistry: CatalogImageSourceRegistry): CatalogImageReviewFailure | null {
+  if (!isCatalogImageSourceKindAllowed(image.platform, image.sourceKind, sourceRegistry)) return "source_not_allowed";
+  const selected = selectCatalogImageSource(image.platform, image.sourceUrl, sourceRegistry);
   if (!selected) return "source_not_allowed";
   const source = new URL(selected.url);
   const expectedHash = createHash("sha256").update(selected.url).digest("hex");
   if (!image.externalProductId.trim()
+    || (image.platform === "taobao" && image.externalVariantId !== null)
     || image.sourceHost !== source.hostname.toLowerCase()
     || image.sourceUrl !== selected.url
-    || image.sourceUrlHash !== expectedHash
-    || (image.platform === "taobao" && image.externalVariantId !== null)) {
+    || image.sourceUrlHash !== expectedHash) {
     return "source_identity_invalid";
   }
   return null;
 }
 
-function validateCandidate(context: CatalogImageReviewContext): CatalogImageReviewFailure | null {
+function validateCandidate(
+  context: CatalogImageReviewContext,
+  sourceRegistry: CatalogImageSourceRegistry,
+): CatalogImageReviewFailure | null {
   const { image } = context;
   if (!context.productExists) return "target_invalid";
   const targetIsValid = image.targetType === "product"
     ? image.variantId === null
     : image.variantId !== null && context.variantBelongsToProduct;
   if (!targetIsValid) return "target_invalid";
-  const sourceFailure = validSource(image);
+  const sourceFailure = validSource(image, sourceRegistry);
   if (sourceFailure) return sourceFailure;
-  return validEvidence(image) ? null : "match_evidence_invalid";
+  return validEvidence(image, sourceRegistry) ? null : "match_evidence_invalid";
 }
 
 export async function approveCatalogImageCandidate(
@@ -136,6 +136,7 @@ export async function approveCatalogImageCandidate(
     verifiedAt?: string;
   }>,
   repository: CatalogImageReviewRepository = new SupabaseCatalogImageRepository(),
+  options: Readonly<{ sourceRegistry?: CatalogImageSourceRegistry }> = {},
 ): Promise<CatalogImage | Readonly<{ status: "rejected"; reason: CatalogImageReviewFailure }>> {
   if (!nonEmpty(input.imageId, 100) || !nonEmpty(input.reviewer, 120)) {
     throw new CatalogImageReviewError("review_metadata_invalid");
@@ -145,7 +146,7 @@ export async function approveCatalogImageCandidate(
   const context = await repository.getReviewContext(input.imageId.trim());
   if (!context) throw new CatalogImageReviewError("not_found");
   if (context.image.status !== "candidate") throw new CatalogImageReviewError("not_candidate");
-  const failure = validateCandidate(context);
+  const failure = validateCandidate(context, options.sourceRegistry ?? defaultCatalogImageSourceRegistry);
   if (failure) {
     const rejected = await repository.rejectCandidate({ imageId: context.image.id, reason: failure });
     if (!rejected) throw new CatalogImageReviewError("not_candidate");

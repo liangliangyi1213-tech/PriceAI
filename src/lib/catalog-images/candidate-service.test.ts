@@ -8,6 +8,7 @@ import type { LiveTaobaoOffer } from "@/lib/platforms/taobao-client";
 
 import { createCatalogImageCandidate } from "./candidate-service";
 import type { CatalogImageCandidateRepository } from "./candidate-service";
+import { createCatalogImageSourceRegistry } from "./catalog-image-source";
 
 const product = phones.find((item) => item.slug === "xiaomi-15")!;
 const variant = product.variants[0];
@@ -99,6 +100,37 @@ describe("catalog image candidate service", () => {
         signals: ["brand", "model"],
       },
     });
+  });
+
+  it("admits a PriceAI-owned fixture only through an explicit test source policy", async () => {
+    const sourceRegistry = createCatalogImageSourceRegistry([
+      {
+        platform: "priceai_fixture",
+        allowedHosts: ["fixture.assets.priceai.test"],
+        allowedSourceKinds: ["owned_fixture"],
+        allowedMatchers: ["priceai_fixture_deterministic"],
+      },
+    ]);
+
+    await expect(createCatalogImageCandidate({
+      source: {
+        platform: "priceai_fixture",
+        externalProductId: "owned-fixture-image-1",
+        externalVariantId: null,
+        sourceKind: "owned_fixture",
+        sourceUrl: "https://fixture.assets.priceai.test/owned-image.png",
+      },
+      match: {
+        status: "matched", product, matchConfidence: 1,
+        evidence: { matcher: "priceai_fixture_deterministic", signals: ["category"] },
+      },
+    }, repository, { sourceRegistry })).resolves.toEqual({ status: "created", imageId: "image-1" });
+
+    expect(createCandidateIfAbsent).toHaveBeenCalledWith(expect.objectContaining({
+      platform: "priceai_fixture",
+      sourceKind: "owned_fixture",
+      externalProductId: "owned-fixture-image-1",
+    }));
   });
 
   it("falls back to Taobao small_images[0] without inventing a variant", async () => {

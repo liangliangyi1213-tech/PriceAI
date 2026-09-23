@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { createMirrorPolicyRegistry, type MirrorPolicy } from "./mirror-policy";
+import { createCatalogImageSourceRegistry } from "./catalog-image-source";
 import { CatalogImageMirrorError } from "./mirror-service-types";
 import { enqueueCatalogImageMirrorJob, runNextCatalogImageMirrorJob } from "./mirror-job-service";
 import type { CatalogImageMirrorJobRepository } from "./mirror-job-repository";
@@ -77,6 +78,33 @@ describe("Catalog image mirror outbox service", () => {
     );
     expect(result).toEqual({ status: "skipped", reason: "policy_remote_only" });
     expect(jobs.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("enqueues an owned-fixture primary only with an explicit test source registry", async () => {
+    const fixturePolicy: MirrorPolicy = {
+      ...policy,
+      platform: "priceai_fixture",
+      category: "test-fixtures",
+      authorizationBasis: "priceai_owned_test_asset",
+    };
+    const sourceRegistry = createCatalogImageSourceRegistry([
+      { platform: "priceai_fixture", allowedHosts: ["fixture.assets.priceai.test"] },
+    ]);
+    jobs.getPrimaryEvent.mockResolvedValue(event());
+    catalog.getMirrorContext.mockResolvedValue({
+      ...context(),
+      category: "test-fixtures",
+      image: {
+        ...context().image,
+        platform: "priceai_fixture",
+        sourceUrl: "https://fixture.assets.priceai.test/owned-image.png",
+      },
+    });
+
+    await expect(enqueueCatalogImageMirrorJob(
+      { imageId: "image-1", previousImageId: null, eventId: "event-1", action: "initial" },
+      { jobs, catalog, registry: createMirrorPolicyRegistry([fixturePolicy]), sourceRegistry },
+    )).resolves.toMatchObject({ status: "enqueued" });
   });
 
   it("does not retry a missing record or changed target as repository downtime", async () => {

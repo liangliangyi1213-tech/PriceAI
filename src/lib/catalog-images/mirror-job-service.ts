@@ -5,6 +5,7 @@ import {
   evaluateCatalogImageMirrorEligibility,
   type MirrorPolicyRegistry,
 } from "./mirror-policy";
+import { type CatalogImageSourceRegistry } from "./catalog-image-source";
 import { mirrorCatalogImage } from "./mirror-service";
 import { CatalogImageMirrorError, type CatalogImageMirrorErrorCode } from "./mirror-service-types";
 import { SupabaseCatalogImageRepository } from "./repository";
@@ -34,9 +35,14 @@ type EnqueueDependencies = Readonly<{
   jobs: CatalogImageMirrorJobRepository;
   catalog: CatalogMirrorContextRepository;
   registry: MirrorPolicyRegistry;
+  sourceRegistry?: CatalogImageSourceRegistry;
 }>;
 
-function eligibilityFor(context: CatalogImageMirrorContext, registry: MirrorPolicyRegistry) {
+function eligibilityFor(
+  context: CatalogImageMirrorContext,
+  registry: MirrorPolicyRegistry,
+  sourceRegistry?: CatalogImageSourceRegistry,
+) {
   return evaluateCatalogImageMirrorEligibility({
     image: {
       kind: "catalog_image",
@@ -50,6 +56,7 @@ function eligibilityFor(context: CatalogImageMirrorContext, registry: MirrorPoli
       sourceUrl: context.image.sourceUrl,
     },
     category: context.category,
+    sourceRegistry,
   }, registry);
 }
 
@@ -77,7 +84,7 @@ export async function enqueueCatalogImageMirrorJob(
   if (!event || !context || !eventMatchesContext(event, context)) {
     return { status: "skipped", reason: "target_mismatch" };
   }
-  const eligibility = eligibilityFor(context, dependencies.registry);
+  const eligibility = eligibilityFor(context, dependencies.registry, dependencies.sourceRegistry);
   if (!eligibility.eligible) {
     const reason = eligibility.reason === "eligible" || eligibility.reason === "not_catalog_image"
       ? "invalid_source"
@@ -149,7 +156,7 @@ export async function runNextCatalogImageMirrorJob(
     await dependencies.jobs.markCancelled(job.id, "primary_context_changed", now.toISOString());
     return { status: "cancelled", jobId: job.id };
   }
-  const eligibility = eligibilityFor(context, dependencies.registry);
+  const eligibility = eligibilityFor(context, dependencies.registry, dependencies.sourceRegistry);
   if (!eligibility.eligible) {
     const reason: CatalogImageMirrorJobErrorCode = eligibility.reason === "eligible"
       || eligibility.reason === "not_catalog_image"

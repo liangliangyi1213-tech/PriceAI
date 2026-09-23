@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import type { CatalogImage } from "./types";
+import { createCatalogImageSourceRegistry } from "./catalog-image-source";
 import { createMirrorPolicyRegistry, type MirrorPolicy } from "./mirror-policy";
 import { createCatalogImageMirrorService } from "./mirror-service";
 import { CatalogImageMirrorError } from "./mirror-service-types";
@@ -55,6 +56,38 @@ function dependencies(overrides: Record<string, unknown> = {}) {
 }
 
 describe("Catalog image mirror service", () => {
+  it("uses an explicitly injected owned-fixture source registry without enabling the production registry", async () => {
+    const fixtureSources = createCatalogImageSourceRegistry([
+      { platform: "priceai_fixture", allowedHosts: ["fixture.assets.priceai.test"] },
+    ]);
+    const fixturePolicy: MirrorPolicy = {
+      ...allowedPolicy,
+      platform: "priceai_fixture",
+      category: "test-fixtures",
+      authorizationBasis: "priceai_owned_test_asset",
+    };
+    const deps = dependencies({
+      registry: createMirrorPolicyRegistry([fixturePolicy]),
+      sourceRegistry: fixtureSources,
+    });
+    deps.repository.getMirrorContext.mockResolvedValue({
+      image: {
+        ...image,
+        platform: "priceai_fixture",
+        sourceUrl: "https://fixture.assets.priceai.test/owned-image.png",
+      },
+      category: "test-fixtures",
+      variantBelongsToProduct: true,
+    });
+
+    await expect(createCatalogImageMirrorService(deps).mirror("image-1"))
+      .resolves.toMatchObject({ status: "mirrored" });
+    expect(deps.download).toHaveBeenCalledWith(expect.objectContaining({
+      platform: "priceai_fixture",
+      sourceRegistry: fixtureSources,
+    }));
+  });
+
   it("rejects remote-only policy without issuing a network request", async () => {
     const deps = dependencies({ registry: createMirrorPolicyRegistry([]) });
     await expect(createCatalogImageMirrorService(deps).mirror("image-1"))

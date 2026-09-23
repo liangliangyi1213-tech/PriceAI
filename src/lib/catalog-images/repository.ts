@@ -29,7 +29,7 @@ import type {
 } from "./mirror-service-types";
 
 const allowedEvidenceMatchers = new Set([
-  "taobao_phone_strict", "pinduoduo_phone_strict", "catalog_sync_deterministic",
+  "taobao_phone_strict", "pinduoduo_phone_strict", "catalog_sync_deterministic", "priceai_fixture_deterministic",
 ]);
 const allowedEvidenceSignals = new Set([
   "brand", "model", "category", "storage", "color", "region", "condition",

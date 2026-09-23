@@ -16,6 +16,7 @@ import type {
   PrimaryPromotionResult,
 } from "./review-service";
 import type { CatalogImage } from "./types";
+import { createCatalogImageSourceRegistry } from "./catalog-image-source";
 
 const sourceUrl = "https://img.alicdn.com/xiaomi-15.jpg";
 const evidence = {
@@ -116,6 +117,38 @@ describe("catalog image review service", () => {
     expect(rejectCandidate).not.toHaveBeenCalled();
   });
 
+  it("approves an owned fixture only when its explicit test source policy remains valid", async () => {
+    const fixtureUrl = "https://fixture.assets.priceai.test/owned-image.png";
+    const fixtureSources = createCatalogImageSourceRegistry([
+      {
+        platform: "priceai_fixture",
+        allowedHosts: ["fixture.assets.priceai.test"],
+        allowedSourceKinds: ["owned_fixture"],
+        allowedMatchers: ["priceai_fixture_deterministic"],
+      },
+    ]);
+    getReviewContext.mockResolvedValue(context({ image: image({
+      platform: "priceai_fixture",
+      externalProductId: "owned-fixture-image-1",
+      sourceKind: "owned_fixture",
+      sourceUrl: fixtureUrl,
+      sourceHost: "fixture.assets.priceai.test",
+      sourceUrlHash: createHash("sha256").update(fixtureUrl).digest("hex"),
+      matchEvidence: {
+        schemaVersion: 1,
+        matcher: "priceai_fixture_deterministic",
+        matchLevel: "product",
+        signals: ["category"],
+      },
+    }) }));
+
+    await expect(approveCatalogImageCandidate({
+      imageId: "image-1",
+      reviewer: "catalog-reviewer",
+      reviewMethod: "manual_cross_check",
+    }, repository, { sourceRegistry: fixtureSources })).resolves.toMatchObject({ status: "approved" });
+  });
+
   it.each([
     ["source_identity_invalid", { sourceHost: "other.example" }],
     ["source_not_allowed", { sourceUrl: "http://img.alicdn.com/xiaomi-15.jpg" }],
@@ -131,6 +164,18 @@ describe("catalog image review service", () => {
     }, repository)).resolves.toEqual({ status: "rejected", reason });
 
     expect(rejectCandidate).toHaveBeenCalledWith({ imageId: "image-1", reason });
+    expect(approveCandidate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a Taobao product Candidate that carries an unsupported external Variant identity", async () => {
+    getReviewContext.mockResolvedValue(context({ image: image({ externalVariantId: "unexpected-variant" }) }));
+
+    await expect(approveCatalogImageCandidate({
+      imageId: "image-1",
+      reviewer: "catalog-reviewer",
+      reviewMethod: "manual",
+    }, repository)).resolves.toEqual({ status: "rejected", reason: "source_identity_invalid" });
+
     expect(approveCandidate).not.toHaveBeenCalled();
   });
 

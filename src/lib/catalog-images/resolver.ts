@@ -1,4 +1,9 @@
-import { selectProviderImageSource, type LiveImagePlatform } from "@/lib/images/live-listing-image";
+import {
+  defaultCatalogImageRenderSourceRegistry,
+  isCatalogImageRenderSourceKindAllowed,
+  selectCatalogImageRenderSource,
+  type CatalogImageRenderSourceRegistry,
+} from "./catalog-image-render-source";
 
 import type { CatalogImage, CatalogImageResolution } from "./types";
 import { isCatalogImageStoragePublicUrl } from "./storage-url";
@@ -25,14 +30,9 @@ function isValidLegacyImage(value: string | null | undefined): value is string {
   }
 }
 
-function approvedImageUrl(image: CatalogImage): string | null {
-  const platform: LiveImagePlatform | null = image.platform === "taobao"
-    ? "taobao"
-    : image.platform === "pdd"
-      ? "pinduoduo"
-      : null;
-  if (!platform) return null;
-  return selectProviderImageSource(platform, [{ kind: image.sourceKind, url: image.sourceUrl }])?.url ?? null;
+function approvedImageUrl(image: CatalogImage, sourceRegistry: CatalogImageRenderSourceRegistry): string | null {
+  if (!isCatalogImageRenderSourceKindAllowed(image.platform, image.sourceKind, sourceRegistry)) return null;
+  return selectCatalogImageRenderSource(image.platform, image.sourceUrl, sourceRegistry);
 }
 
 export function resolveCatalogImage({
@@ -41,12 +41,14 @@ export function resolveCatalogImage({
   images,
   legacyImage,
   storageUrlForImage,
+  sourceRegistry = defaultCatalogImageRenderSourceRegistry,
 }: {
   productId: string;
   variantId: string | null;
   images: readonly CatalogImage[];
   legacyImage: string | null | undefined;
   storageUrlForImage?: CatalogStorageUrlResolver;
+  sourceRegistry?: CatalogImageRenderSourceRegistry;
 }): CatalogImageResolution {
   const approvedPrimaries = images.filter((image) =>
     image.productId === productId && image.status === "approved" && image.role === "primary",
@@ -71,7 +73,7 @@ export function resolveCatalogImage({
         platform: selected.platform,
       };
     }
-    const remoteUrl = approvedImageUrl(selected);
+    const remoteUrl = approvedImageUrl(selected, sourceRegistry);
     if (remoteUrl) {
       return {
         kind: "image",
@@ -91,6 +93,7 @@ export function resolveCatalogImage({
 export function resolveRenderableCatalogImage(
   resolution: CatalogImageResolution,
   failedUrl: string | null,
+  sourceRegistry: CatalogImageRenderSourceRegistry = defaultCatalogImageRenderSourceRegistry,
 ): CatalogImageResolution {
   if (resolution.kind === "none" || resolution.url === failedUrl) return noCatalogImage();
   if (resolution.source === "legacy") return isValidLegacyImage(resolution.url) ? resolution : noCatalogImage();
@@ -98,12 +101,6 @@ export function resolveRenderableCatalogImage(
     return isCatalogImageStoragePublicUrl(resolution.url) ? resolution : noCatalogImage();
   }
   if (!resolution.platform) return noCatalogImage();
-  const platform: LiveImagePlatform | null = resolution.platform === "taobao"
-    ? "taobao"
-    : resolution.platform === "pdd"
-      ? "pinduoduo"
-      : null;
-  if (!platform) return noCatalogImage();
-  const safe = selectProviderImageSource(platform, [{ kind: "catalog_primary", url: resolution.url }]);
-  return safe?.url === resolution.url ? resolution : noCatalogImage();
+  const safe = selectCatalogImageRenderSource(resolution.platform, resolution.url, sourceRegistry);
+  return safe === resolution.url ? resolution : noCatalogImage();
 }

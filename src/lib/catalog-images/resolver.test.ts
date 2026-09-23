@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { createCatalogImageSourceRegistry } from "./catalog-image-source";
 import { resolveCatalogImage, resolveRenderableCatalogImage } from "./resolver";
 import type { CatalogImage } from "./types";
 
@@ -63,6 +64,31 @@ describe("catalog image resolver", () => {
       kind: "image", source: "approved_product", url: "https://img.alicdn.com/product.jpg",
       imageId: "image-product", platform: "taobao",
     });
+  });
+
+  it("uses an explicitly injected owned-fixture source only for the controlled resolution", () => {
+    const fixtureUrl = "https://fixture.assets.priceai.test/owned-image.png";
+    const fixtureSources = createCatalogImageSourceRegistry([
+      {
+        platform: "priceai_fixture",
+        allowedHosts: ["fixture.assets.priceai.test"],
+        allowedSourceKinds: ["owned_fixture"],
+      },
+    ]);
+    const fixture = image({
+      platform: "priceai_fixture",
+      sourceKind: "owned_fixture",
+      sourceUrl: fixtureUrl,
+      sourceHost: "fixture.assets.priceai.test",
+    });
+
+    expect(resolveCatalogImage({
+      productId: "product-1", variantId: null, images: [fixture], legacyImage: "",
+    }).kind).toBe("none");
+    expect(resolveCatalogImage({
+      productId: "product-1", variantId: null, images: [fixture], legacyImage: "",
+      sourceRegistry: fixtureSources,
+    })).toMatchObject({ source: "approved_product", url: fixtureUrl, platform: "priceai_fixture" });
   });
 
   it("prefers variant storage, then variant remote, before any product primary source", () => {

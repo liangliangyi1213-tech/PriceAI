@@ -12,7 +12,8 @@ export type CatalogImageMatchSignal =
 export type CatalogImageMatcher =
   | "taobao_phone_strict"
   | "pinduoduo_phone_strict"
-  | "catalog_sync_deterministic";
+  | "catalog_sync_deterministic"
+  | "priceai_fixture_deterministic";
 
 export type CatalogImage = Readonly<{
   id: string;

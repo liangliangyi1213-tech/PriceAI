@@ -5,7 +5,11 @@ import { BlockList, isIP, type LookupFunction } from "node:net";
 
 import { Agent, request } from "undici";
 
-import { selectProviderImageSource, type LiveImagePlatform } from "@/lib/images/live-listing-image";
+import {
+  defaultCatalogImageSourceRegistry,
+  selectCatalogImageSource,
+  type CatalogImageSourceRegistry,
+} from "./catalog-image-source";
 
 import { asMirrorError, CatalogImageMirrorError } from "./mirror-service-types";
 
@@ -70,19 +74,12 @@ function isBlockedAddress(address: ResolvedPublicAddress): boolean {
     : blocked.check(address.address, address.family === 4 ? "ipv4" : "ipv6");
 }
 
-function provider(platform: string): LiveImagePlatform | null {
-  if (platform === "taobao") return "taobao";
-  if (platform === "pdd" || platform === "pinduoduo") return "pinduoduo";
-  return null;
-}
-
-function safeSourceUrl(value: string, platform: string): URL | null {
+function safeSourceUrl(value: string, platform: string, sourceRegistry: CatalogImageSourceRegistry): URL | null {
   let url: URL;
   try { url = new URL(value); } catch { return null; }
   if (url.protocol !== "https:" || url.username || url.password) return null;
   if (url.hostname === "localhost" || url.hostname.endsWith(".localhost") || isIP(url.hostname)) return null;
-  const livePlatform = provider(platform);
-  if (!livePlatform || !selectProviderImageSource(livePlatform, [{ kind: "mirror", url: url.href }])) return null;
+  if (!selectCatalogImageSource(platform, url.href, sourceRegistry)) return null;
   return url;
 }
 
@@ -151,14 +148,20 @@ function withAbort<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
 }
 
 export async function downloadMirrorSource(
-  input: Readonly<{ url: string; platform: string; policy: MirrorDownloadPolicy }>,
+  input: Readonly<{
+    url: string;
+    platform: string;
+    policy: MirrorDownloadPolicy;
+    sourceRegistry?: CatalogImageSourceRegistry;
+  }>,
   dependencies: MirrorDownloaderDependencies = {},
 ): Promise<Readonly<{ bytes: Uint8Array; headerContentType: string }>> {
   if (!input.url.startsWith("https://")) throw new CatalogImageMirrorError("invalid_source");
   if (/^https:\/\/(?:localhost|[^/]+\.localhost|\[?(?:127\.|::1))/i.test(input.url)) {
     throw new CatalogImageMirrorError("dns_blocked");
   }
-  let current = safeSourceUrl(input.url, input.platform);
+  const sourceRegistry = input.sourceRegistry ?? defaultCatalogImageSourceRegistry;
+  let current = safeSourceUrl(input.url, input.platform, sourceRegistry);
   if (!current) throw new CatalogImageMirrorError("invalid_source");
   const resolve = dependencies.resolve ?? defaultResolve;
   const requestHop = dependencies.requestHop ?? defaultRequestHop;
@@ -197,7 +200,7 @@ export async function downloadMirrorSource(
           if (!redirectUrl.href.startsWith("https://")
             || redirectUrl.hostname === "localhost" || redirectUrl.hostname.endsWith(".localhost")
             || isIP(redirectUrl.hostname)) throw new CatalogImageMirrorError("redirect_blocked");
-          current = safeSourceUrl(redirectUrl.href, input.platform) ?? (() => { throw new CatalogImageMirrorError("redirect_blocked"); })();
+          current = safeSourceUrl(redirectUrl.href, input.platform, sourceRegistry) ?? (() => { throw new CatalogImageMirrorError("redirect_blocked"); })();
           continue;
         }
         if (response.statusCode >= 500 && response.statusCode <= 599) {

@@ -1,4 +1,8 @@
-import { selectProviderImageSource, type LiveImagePlatform } from "@/lib/images/live-listing-image";
+import {
+  defaultCatalogImageSourceRegistry,
+  selectCatalogImageSource,
+  type CatalogImageSourceRegistry,
+} from "./catalog-image-source";
 
 export type MirrorPolicyMode = "remote_only" | "mirror_allowed";
 export type MirrorTransform = "preserve" | "normalize_webp";
@@ -83,20 +87,17 @@ export function resolveMirrorPolicy(
     && !normalized(policy.category)) ?? remoteOnlyPolicy(platform);
 }
 
-function liveImagePlatform(platform: string): LiveImagePlatform | null {
-  const value = normalized(platform);
-  if (value === "taobao") return "taobao";
-  if (value === "pdd" || value === "pinduoduo") return "pinduoduo";
-  return null;
-}
-
 function isCatalogImageMirrorFacts(value: unknown): value is CatalogImageMirrorFacts {
   return typeof value === "object" && value !== null
     && (value as { kind?: unknown }).kind === "catalog_image";
 }
 
 export function evaluateCatalogImageMirrorEligibility(
-  input: Readonly<{ image: CatalogImageMirrorFacts; category?: string }>,
+  input: Readonly<{
+    image: CatalogImageMirrorFacts;
+    category?: string;
+    sourceRegistry?: CatalogImageSourceRegistry;
+  }>,
   registry: MirrorPolicyRegistry = defaultMirrorPolicyRegistry,
 ): CatalogImageMirrorEligibility {
   const image: unknown = input?.image;
@@ -111,10 +112,11 @@ export function evaluateCatalogImageMirrorEligibility(
     ? image.variantId === null
     : typeof image.variantId === "string" && image.variantId.trim().length > 0;
   if (!image.productId.trim() || !targetMatches) return { eligible: false, reason: "target_mismatch", policy };
-  const provider = liveImagePlatform(image.platform);
-  const source = provider
-    ? selectProviderImageSource(provider, [{ kind: "catalog_primary", url: image.sourceUrl }])
-    : null;
+  const source = selectCatalogImageSource(
+    image.platform,
+    image.sourceUrl,
+    input.sourceRegistry ?? defaultCatalogImageSourceRegistry,
+  );
   if (!source) return { eligible: false, reason: "invalid_source", policy };
   if (policy.mode !== "mirror_allowed") return { eligible: false, reason: "policy_remote_only", policy };
   return { eligible: true, reason: "eligible", policy };

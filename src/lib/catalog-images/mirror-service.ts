@@ -2,6 +2,7 @@ import "server-only";
 
 import { downloadMirrorSource } from "./mirror-downloader";
 import { inspectMirrorImage } from "./mirror-image-metadata";
+import { type CatalogImageSourceRegistry } from "./catalog-image-source";
 import {
   defaultMirrorPolicyRegistry,
   evaluateCatalogImageMirrorEligibility,
@@ -32,6 +33,7 @@ type MirrorDependencies = Readonly<{
   repository: CatalogImageMirrorRepository;
   storage: MirrorStorage;
   registry: MirrorPolicyRegistry;
+  sourceRegistry?: CatalogImageSourceRegistry;
   download: typeof downloadMirrorSource;
   now: () => Date;
 }>;
@@ -68,6 +70,7 @@ export function createCatalogImageMirrorService(dependencies: MirrorDependencies
           sourceUrl: context.image.sourceUrl,
         },
         category: context.category,
+        sourceRegistry: dependencies.sourceRegistry,
       }, dependencies.registry);
       if (!eligibility.eligible) {
         const code = eligibility.reason === "not_catalog_image" || eligibility.reason === "eligible"
@@ -83,6 +86,7 @@ export function createCatalogImageMirrorService(dependencies: MirrorDependencies
         url: context.image.sourceUrl,
         platform: context.image.platform,
         policy: eligibility.policy,
+        sourceRegistry: dependencies.sourceRegistry,
       });
       const inspected = inspectMirrorImage(downloaded.bytes, downloaded.headerContentType, eligibility.policy);
       const path = buildCatalogMirrorObjectPath({

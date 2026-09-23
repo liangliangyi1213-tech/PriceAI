@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { createPinnedLookup, downloadMirrorSource, type MirrorHttpResponse } from "./mirror-downloader";
+import { createCatalogImageSourceRegistry } from "./catalog-image-source";
 import { CatalogImageMirrorError } from "./mirror-service-types";
 
 const policy = {
@@ -21,6 +22,25 @@ function response(overrides: Partial<MirrorHttpResponse> = {}): MirrorHttpRespon
 }
 
 describe("Catalog mirror downloader", () => {
+  it("uses a test-only source registry for an owned fixture without admitting it to production defaults", async () => {
+    const sourceRegistry = createCatalogImageSourceRegistry([
+      { platform: "priceai_fixture", allowedHosts: ["fixture.assets.priceai.test"] },
+    ]);
+    const requestHop = vi.fn().mockResolvedValue(response());
+
+    await downloadMirrorSource({
+      url: "https://fixture.assets.priceai.test/owned-image.png",
+      platform: "priceai_fixture",
+      policy,
+      sourceRegistry,
+    }, {
+      resolve: vi.fn().mockResolvedValue([{ address: "93.184.216.34", family: 4 }]),
+      requestHop,
+    });
+
+    expect(requestHop).toHaveBeenCalledTimes(1);
+  });
+
   it("makes the connector lookup return the validated address instead of resolving the hostname again", async () => {
     const lookup = createPinnedLookup({ address: "93.184.216.34", family: 4 });
     await new Promise<void>((resolve, reject) => {
