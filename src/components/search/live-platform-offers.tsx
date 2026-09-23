@@ -23,6 +23,8 @@ export type LivePlatformListing = {
   actionLabel?: string;
   platformLabel: string;
   confirmedProductName: string;
+  dataTypeLabel: string;
+  specificationNote: string;
 };
 
 export function LivePlatformOffers({
@@ -51,14 +53,18 @@ export function LivePlatformOffers({
   function cards(items: readonly LivePlatformListing[]) {
     return items.map((listing) => (
       <li className="flex h-full min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md" data-live-offer-card={listing.platformLabel} key={listing.id}>
-        <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700" data-platform-badge={listing.platformLabel}>
-          <span aria-hidden="true" className="size-1.5 rounded-full bg-blue-500" />{listing.platformLabel}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700" data-platform-badge={listing.platformLabel}>
+            <span aria-hidden="true" className="size-1.5 rounded-full bg-blue-500" />{listing.platformLabel}
+          </span>
+          <span className="inline-flex w-fit rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600" data-quote-type={listing.dataTypeLabel}>{listing.dataTypeLabel}</span>
+        </div>
 
         <SafeProductImage confirmedProductName={listing.confirmedProductName} image={listing.image} />
 
         <div className="flex min-w-0 flex-1 flex-col pt-3" data-live-offer-body="true">
           <p className="line-clamp-3 min-h-[3.75rem] break-words text-sm font-semibold leading-5 text-slate-900 [overflow-wrap:anywhere]" title={listing.title}>{listing.title}</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{listing.specificationNote}</p>
           <p className="mt-1 min-h-5 truncate text-xs leading-5 text-slate-400" title={listing.merchant ?? undefined}>{listing.merchant ? `店铺：${listing.merchant}` : "店铺信息暂缺"}</p>
 
           <div aria-label={`${listing.primaryPriceLabel ?? "当前价格"} ${formatPrice(listing.primaryPrice)}`} className="mt-3 min-w-0">

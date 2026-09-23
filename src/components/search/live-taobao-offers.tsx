@@ -21,6 +21,8 @@ function listing(offer: LiveTaobaoProductOffer, confirmedProductName: string): L
     actionLabel: "去淘宝看看",
     platformLabel: "淘宝",
     confirmedProductName,
+    dataTypeLabel: "商品级参考价",
+    specificationNote: "具体规格未确认，不参与同规格最低价、价格筛选、排序或 PriceAI 评分。",
   };
 }
 

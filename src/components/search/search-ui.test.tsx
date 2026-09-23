@@ -78,7 +78,10 @@ describe("product card presentation", () => {
 
     expect(html).not.toContain("实时淘宝报价");
     expect(html).not.toContain("Xiaomi 小米15 5G 全新手机");
-    expect(html).toContain("最低正式报价");
+    expect(html).toContain("最低 Catalog 已收录报价");
+    expect(html).toContain("同规格 Catalog 已收录报价");
+    expect(html).toContain("演示数据，非实时平台价格");
+    expect(html).not.toContain("正式平台报价");
   });
 
   it("keeps live Pinduoduo listings outside while preserving its comparable headline price", async () => {
@@ -98,9 +101,9 @@ describe("product card presentation", () => {
     const row = searchCatalog([phones[0]], { sort: "relevance" }, new Map([[phones[0].id, [offer]]]))[0];
     const html = renderToStaticMarkup(<SearchProductCard row={row} />);
 
-    expect(html).toContain("当前可比最低价");
+    expect(html).toContain("当前同规格可比最低价");
     expect(html).toContain("¥6,999");
-    expect(html).toContain("已收录平台报价中，同规格最低报价比第二低报价低 ¥200");
+    expect(html).toContain("Catalog 已收录报价中，同规格最低报价比第二低报价低 ¥200");
     expect(html).not.toContain("参与评分的平台报价");
     expect(html).toContain("此参考不含实时拼多多报价");
   });
@@ -128,7 +131,7 @@ describe("product card presentation", () => {
     expect(withLive).not.toContain("javascript:alert(1)");
     expect(withLive).not.toMatch(/优惠信息|销量|品牌好店/);
     expect(withoutLive).not.toContain("实时拼多多报价");
-    expect(withoutLive).toContain("最低正式报价");
+    expect(withoutLive).toContain("最低 Catalog 已收录报价");
   });
 
   it("keeps an unknown live SKU separate from the persisted headline price", async () => {
@@ -141,9 +144,9 @@ describe("product card presentation", () => {
     )[0]} />);
 
     expect(html).toContain("¥7,599");
-    expect(html).toContain("最低正式报价");
+    expect(html).toContain("最低 Catalog 已收录报价");
     expect(html).not.toContain("¥9.9");
-    expect(html).not.toContain("当前可比最低价");
+    expect(html).not.toContain("当前同规格可比最低价");
   });
 
   it("keeps live section identifiers unique when multiple cards render", async () => {
@@ -190,12 +193,13 @@ describe("product card presentation", () => {
     expect(html).toContain(`PriceAI 评分：${row.valueScore}`);
     expect(html).toContain("256GB");
     expect(html).toContain("购买参考");
-    expect(html.indexOf("购买参考")).toBeLessThan(html.indexOf("同规格正式报价"));
+    expect(html.indexOf("购买参考")).toBeLessThan(html.indexOf("同规格 Catalog 已收录报价"));
     expect(html).not.toContain("PriceAI 观点");
     expect(html).not.toContain("商品摘要");
     expect(html).toContain("/products/apple-iphone-16-pro#price-history-heading");
     expect(html).toContain("查看历史价格");
-    expect(html).toContain("最低正式报价");
+    expect(html).toContain("最低 Catalog 已收录报价");
+    expect(html).toContain("演示数据，非实时平台价格");
     expect(html).toContain('aria-label="iPhone 16 Pro 标准商品决策卡"');
     expect(html).not.toMatch(/历史最低价|折扣|已售|AI 推荐/);
   });
@@ -284,15 +288,30 @@ describe("live Taobao offer presentation", () => {
 
   it("uses the same external live-offer area and card skeleton for Pinduoduo", async () => {
     const { LiveSearchOffers } = await import("./live-search-offers");
-    const html = renderToStaticMarkup(<LiveSearchOffers pinduoduoOffers={[liveOffer()]} productName="iPhone 16 Pro" taobaoOffers={[]} />);
+    const html = renderToStaticMarkup(<LiveSearchOffers pinduoduoOffers={[liveOffer()]} product={phones[0]} taobaoOffers={[]} />);
 
     expect(html).toContain('aria-label="实时平台报价"');
     expect(html).toContain('data-live-offer-card="拼多多"');
+    expect(html).toContain("同规格实时报价");
+    expect(html).toContain("256GB · 黑色 · 国行 · 全新");
     expect(html).toContain("Apple iPhone 16 实时商品标题");
     expect(html).toContain("近2小时已拼100+件");
     expect(html).toContain("券额 ¥200");
     expect(html).toContain("使用门槛 ¥1,000");
     expect(html).not.toContain("额外优惠 ¥50");
+  });
+
+  it("labels unknown live listing specifications as product-level reference prices", async () => {
+    const { LiveSearchOffers } = await import("./live-search-offers");
+    const html = renderToStaticMarkup(<LiveSearchOffers
+      pinduoduoOffers={[liveOffer({ variantId: null, price: 9.9 })]}
+      product={phones[0]}
+      taobaoOffers={[taobaoOffer({ itemId: "product-reference" })]}
+    />);
+
+    expect((html.match(/商品级参考价/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(html).toContain("具体规格未确认");
+    expect(html).toContain("不参与同规格最低价、价格筛选、排序或 PriceAI 评分");
   });
 
   it("deduplicates exact items and conservative same-shop near-duplicates before sorting", async () => {

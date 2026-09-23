@@ -93,11 +93,11 @@ beforeEach(() => {
 
 describe("search page live Pinduoduo integration", () => {
   it("loads the catalog before live offers and passes live results into the search rows", async () => {
-    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ q: "iPhone 16" }) }));
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ q: "iPhone 16 Pro" }) }));
 
     expect(mocks.events[0]).toBe("catalog");
     expect(new Set(mocks.events.slice(1))).toEqual(new Set(["live", "taobao"]));
-    expect(mocks.getLivePinduoduoOffers).toHaveBeenCalledWith([phones[0]], "iPhone 16");
+    expect(mocks.getLivePinduoduoOffers).toHaveBeenCalledWith([phones[0]], "iPhone 16 Pro");
     expect(mocks.getLiveTaobaoOffers).toHaveBeenCalledWith([phones[0]]);
     expect(html).toContain("页面实时商品");
     expect(html).toContain("¥6,999");
@@ -113,7 +113,7 @@ describe("search page live Pinduoduo integration", () => {
   it("keeps catalog and PDD results visible when the Taobao service fails", async () => {
     mocks.getLiveTaobaoOffers.mockRejectedValue(new Error("private Taobao failure"));
 
-    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ q: "iPhone 16" }) }));
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ q: "iPhone 16 Pro" }) }));
 
     expect(html).toContain(phones[0].name);
     expect(html).toContain("页面实时商品");
@@ -165,6 +165,21 @@ describe("search page live Pinduoduo integration", () => {
     expect(html).not.toContain("最低性价比分数");
     expect(mocks.getLivePinduoduoOffers).not.toHaveBeenCalled();
     expect(mocks.getLiveTaobaoOffers).not.toHaveBeenCalled();
+  });
+
+  it("renders a Chinese empty state without falling back to an unrelated ranking", async () => {
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ q: "不存在的严格型号" }) }));
+
+    expect(html).toContain("没有找到符合条件的商品");
+    expect(html).not.toContain("手机性价比榜");
+    expect(html).not.toContain("热门榜单");
+  });
+
+  it("explains that Catalog quotes and product-level live references have different comparability", async () => {
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ q: "iPhone 16 Pro" }) }));
+
+    expect(html).toContain("Catalog 已收录报价按明确规格比较");
+    expect(html).toContain("商品级参考价不代表同规格报价");
   });
 
 });

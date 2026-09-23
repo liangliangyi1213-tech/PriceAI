@@ -83,6 +83,14 @@ describe("live Taobao product offers", () => {
     expect((await service([target])).get(target.id)).toBeUndefined();
   });
 
+  it("does not publish compact iPhone 16 Pro and 16 Pro Max mixed-model listings", async () => {
+    const target = product("apple-iphone-16-pro");
+    const source = offer("Apple iPhone16Pro / 16ProMax 多型号可选", { brandName: "Apple" });
+    const service = createLiveTaobaoService({ adapter: adapterWith([source]) });
+
+    expect((await service([target])).get(target.id)).toBeUndefined();
+  });
+
   it("returns an empty result when Taobao fails", async () => {
     const service = createLiveTaobaoService({
       adapter: { searchPhoneOffersForProduct: async () => { throw new Error("private provider failure"); } },

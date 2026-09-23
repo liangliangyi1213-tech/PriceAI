@@ -6,23 +6,23 @@ import type { CatalogImageResolution } from "@/lib/catalog-images/types";
 import { formatPrice } from "@/lib/pricing/offers";
 import type { ProductSearchRow } from "@/lib/search/products";
 import type { Offer } from "@/types/catalog";
-import { categoryLabel, productCardDetails, purchaseOpinion } from "./presentation";
+import { catalogOfferSourceDisclosure, categoryLabel, productCardDetails, purchaseOpinion } from "./presentation";
 import { specificationSummary } from "./specification-summary";
 
 function OfferRow({ offer, lowestId }: { offer: Offer; lowestId?: string }) {
   const isLowest = offer.id === lowestId;
-  return <li className={`flex min-w-0 items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm ${isLowest ? "bg-blue-50 text-blue-800" : "bg-slate-50 text-slate-600"}`}><span className="min-w-0 truncate">{offer.platform}</span><span className={`shrink-0 tabular-nums ${isLowest ? "font-bold text-blue-700" : "font-semibold text-slate-700"}`}>{formatPrice(offer.price)}</span>{isLowest ? <span className="sr-only">最低正式报价</span> : null}</li>;
+  return <li className={`flex min-w-0 items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm ${isLowest ? "bg-blue-50 text-blue-800" : "bg-slate-50 text-slate-600"}`}><span className="min-w-0 truncate">{offer.platform}</span><span className={`shrink-0 tabular-nums ${isLowest ? "font-bold text-blue-700" : "font-semibold text-slate-700"}`}>{formatPrice(offer.price)}</span>{isLowest ? <span className="sr-only">最低 Catalog 已收录报价</span> : null}</li>;
 }
 
 const noImage: CatalogImageResolution = { kind: "none", source: "none", url: null, imageId: null, platform: null };
 
 export function SearchProductCard({ row, image = noImage, children }: { row: ProductSearchRow; image?: CatalogImageResolution; children?: ReactNode }) {
-  const { product, lowestOffer, displayLowestPrice, livePinduoduoOffers } = row;
+  const { product, lowestOffer, displayLowestPrice, comparableLiveLowestPrice } = row;
   const { variant, offers } = productCardDetails(row);
   const href = `/products/${product.slug}`;
   const specification = specificationSummary(product.category, variant);
   const defaultVariant = product.variants[0];
-  const hasComparableLiveOffer = Boolean(variant && livePinduoduoOffers.some((offer) => offer.variantId === variant.id));
+  const hasComparableLiveOffer = variant !== undefined && comparableLiveLowestPrice !== null;
   const differentDetailVariant = variant && defaultVariant && variant.id !== defaultVariant.id;
   const defaultSpecification = specificationSummary(product.category, defaultVariant);
   const updatedAt = lowestOffer?.updatedAt;
@@ -45,7 +45,7 @@ export function SearchProductCard({ row, image = noImage, children }: { row: Pro
 
         <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.85fr)] sm:items-end">
           <div>
-            <p className="text-xs font-medium text-slate-500">{hasComparableLiveOffer ? "当前可比最低价" : "最低正式报价"}</p>
+            <p className="text-xs font-medium text-slate-500">{hasComparableLiveOffer ? "当前同规格可比最低价" : "最低 Catalog 已收录报价"}</p>
             <p className="mt-0.5 text-3xl font-bold tracking-tight text-slate-950">{displayLowestPrice !== null ? formatPrice(displayLowestPrice) : <span className="text-lg text-slate-600">暂无有效报价</span>}</p>
           </div>
           <PriceAIScore score={row.valueScore} size="prominent" />
@@ -58,7 +58,10 @@ export function SearchProductCard({ row, image = noImage, children }: { row: Pro
 
         {offers.length ? (
           <div className="mt-3 border-t border-slate-100 pt-3">
-            <p className="mb-2 text-xs font-medium text-slate-500">同规格正式报价 · {offers.length} 个平台</p>
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-1">
+              <p className="text-xs font-medium text-slate-500">同规格 Catalog 已收录报价 · {offers.length} 个平台标识</p>
+              <p className="text-[11px] text-slate-400">{catalogOfferSourceDisclosure(offers)}</p>
+            </div>
             <ul className="grid gap-1.5 sm:grid-cols-3">
               {offers.slice(0, 3).map((offer) => <OfferRow key={offer.id} lowestId={lowestOffer?.id} offer={offer} />)}
             </ul>

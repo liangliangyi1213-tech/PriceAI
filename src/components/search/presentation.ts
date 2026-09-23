@@ -48,8 +48,8 @@ export function livePinduoduoOfferFacts(offer: LivePinduoduoOffer) {
 
 /** Compare like-for-like offers for the variant used by the existing search score. */
 export function productCardDetails(row: ProductSearchRow) {
-  const variant = row.lowestOffer
-    ? row.product.variants.find((candidate) => candidate.offers.some((offer) => offer.id === row.lowestOffer?.id))
+  const variant = row.selectedVariantId
+    ? row.product.variants.find((candidate) => candidate.id === row.selectedVariantId)
     : undefined;
   const platforms = new Map<string, Offer>();
   for (const offer of variant?.offers ?? []) {
@@ -60,22 +60,39 @@ export function productCardDetails(row: ProductSearchRow) {
   return { variant, offers: [...platforms.values()].sort((a, b) => a.price - b.price) };
 }
 
+/** Describes provenance without treating a stored or synchronized row as a real-time platform quote. */
+export function catalogOfferSourceDisclosure(offers: readonly Offer[]): string {
+  if (offers.every((offer) => offer.source?.trim().toLowerCase() === "mock" || offer.url.trim() === "#")) {
+    return "演示数据，非实时平台价格";
+  }
+  const sources = new Set(offers.map((offer) => offer.source?.trim().toLowerCase() || "catalog"));
+  if (sources.size === 1 && sources.has("platform_sync")) {
+    return "平台同步记录，非实时平台价格";
+  }
+  if (sources.size === 1 && sources.has("verified_platform")) {
+    return "已核验平台记录，非实时平台价格";
+  }
+  return sources.size === 1
+    ? "Catalog 已收录记录，非实时平台价格"
+    : "包含不同来源的 Catalog 记录，非实时平台价格";
+}
+
 /** A deterministic quote observation, not an AI response or explanation of the overall score. */
 export function purchaseOpinion(row: ProductSearchRow): string {
   const { offers } = productCardDetails(row);
   const hasLivePinduoduoOffers = row.livePinduoduoOffers.length > 0;
   if (!offers.length) return hasLivePinduoduoOffers
-    ? "暂无已收录平台报价；此参考不含实时拼多多报价。"
+    ? "暂无 Catalog 已收录报价；此参考不含实时拼多多报价。"
     : "暂无有效报价，暂不作购买判断。";
   if (offers.length === 1) return hasLivePinduoduoOffers
-    ? "已收录平台仅有 1 个同规格报价；此参考不含实时拼多多报价，建议再作比较。"
-    : "仅收录 1 个平台报价，建议再作比较。";
+    ? "Catalog 仅有 1 个同规格已收录报价；此参考不含实时拼多多报价，建议再作比较。"
+    : "Catalog 仅收录 1 个同规格报价，建议再作比较。";
   const difference = Math.round((offers[1].price - offers[0].price) * 100) / 100;
   if (difference === 0) return hasLivePinduoduoOffers
-    ? "已收录平台报价中，多个平台同为最低报价；此参考不含实时拼多多报价。"
-    : "多个平台同为最低报价，建议核对服务与购买条件。";
+    ? "Catalog 已收录报价中，多个平台标识同为最低报价；此参考不含实时拼多多报价。"
+    : "Catalog 中多个平台标识同为最低报价，建议核对服务与购买条件。";
   if (hasLivePinduoduoOffers) {
-    return `已收录平台报价中，同规格最低报价比第二低报价低 ${formatPrice(difference)}；此参考不含实时拼多多报价。`;
+    return `Catalog 已收录报价中，同规格最低报价比第二低报价低 ${formatPrice(difference)}；此参考不含实时拼多多报价。`;
   }
-  return `同规格最低价比第二低价低 ${formatPrice(difference)}，可以优先比较。`;
+  return `Catalog 同规格最低报价比第二低报价低 ${formatPrice(difference)}，可以优先比较。`;
 }

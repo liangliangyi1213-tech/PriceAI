@@ -29,6 +29,18 @@ function liveOffer(overrides: Partial<LivePinduoduoOffer> = {}): LivePinduoduoOf
 }
 
 describe("search presentation", () => {
+  it("labels Mock/seed offers as demo data and does not equate synchronization with real-time verification", () => {
+    const demoOffers = phones[0].variants[0].offers;
+    const synchronizedOffers = demoOffers.map((offer) => ({
+      ...offer,
+      source: "platform_sync",
+      url: "https://example.test/catalog-offer",
+    }));
+
+    expect(presentation.catalogOfferSourceDisclosure(demoOffers)).toBe("演示数据，非实时平台价格");
+    expect(presentation.catalogOfferSourceDisclosure(synchronizedOffers)).toBe("平台同步记录，非实时平台价格");
+  });
+
   it("presents only validated live image, sales, and coupon facts", () => {
     expect(presentation.livePinduoduoOfferFacts(liveOffer())).toEqual({
       image: { platform: "pinduoduo", externalProductId: "live-1", url: "https://img.pddpic.com/live-phone.jpg", alt: "iPhone 16 Pro" },
@@ -52,19 +64,19 @@ describe("search presentation", () => {
 
   it("bases the opinion on the next-lowest same-variant platform, not the highest", () => {
     const row = searchCatalog([phones[0]], { sort: "relevance" })[0];
-    expect(presentation.purchaseOpinion(row)).toBe("同规格最低价比第二低价低 ¥200，可以优先比较。");
+    expect(presentation.purchaseOpinion(row)).toBe("Catalog 同规格最低报价比第二低报价低 ¥200，可以优先比较。");
   });
   it("does not claim all platforms have equal prices when only the two cheapest tie", () => {
     const product = structuredClone(phones[0]);
     product.variants[0].offers[1].price = 7599;
     expect(presentation.purchaseOpinion(searchCatalog([product], { sort: "relevance" })[0]))
-      .toBe("多个平台同为最低报价，建议核对服务与购买条件。");
+      .toBe("Catalog 中多个平台标识同为最低报价，建议核对服务与购买条件。");
   });
   it("does not invent a price advantage from one platform or missing data", () => {
     const product = structuredClone(phones[0]);
     product.variants = [{ ...product.variants[0], offers: [product.variants[0].offers[0]] }];
     expect(presentation.purchaseOpinion(searchCatalog([product], { sort: "relevance" })[0]))
-      .toBe("仅收录 1 个平台报价，建议再作比较。");
+      .toBe("Catalog 仅收录 1 个同规格报价，建议再作比较。");
     product.variants = [];
     expect(presentation.purchaseOpinion(searchCatalog([product], { sort: "relevance" })[0]))
       .toBe("暂无有效报价，暂不作购买判断。");

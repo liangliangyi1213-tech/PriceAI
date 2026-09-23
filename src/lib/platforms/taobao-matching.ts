@@ -22,18 +22,40 @@ function compact(value: string): string {
   return value.toLocaleLowerCase().replace(/[\s\-_/]/g, "");
 }
 
+function modelText(value: string): string {
+  return value.toLocaleLowerCase().replace(/[\s\-_]/g, "");
+}
+
 function modelKey(value: string): string {
   return compact(value).replace(/^(?:apple|iphone|苹果|华为|huawei|小米|xiaomi|redmi|oppo|vivo)/, "");
 }
 
 function detectsKnownModels(title: string, brand: string): string[] {
-  const text = compact(title);
-  const matches = brand === "Apple"
+  const text = modelText(title);
+  const denseText = compact(title);
+  const directMatches = brand === "Apple"
     ? text.match(/iphone\d+(?:promax|pro|plus|e)?/g) ?? []
     : brand === "小米"
       ? text.match(/(?:xiaomi|小米)\d+(?:ultra|pro|max|s|t)?/g) ?? []
       : [];
-  return [...new Set(matches.map(modelKey))];
+  const shorthandPattern = brand === "Apple"
+    ? /(?:[/、|,，]|或)(\d{2})(promax|pro|plus|max|e)?(?!\d)/g
+    : brand === "小米"
+      ? /(?:[/、|,，]|或)(\d{2})(ultra|promax|pro|plus|max|s|t)?(?!\d)/g
+      : null;
+  const shorthandMatches = shorthandPattern
+    ? [...text.matchAll(shorthandPattern)].map((match) => `${match[1]}${match[2] ?? ""}`)
+    : [];
+  const suffixMatches = brand === "Apple"
+    ? denseText.match(/\d{2}(?:promax|pro|plus|max|e)/g) ?? []
+    : brand === "小米"
+      ? denseText.match(/\d{2}(?:ultra|promax|pro|plus|max|s|t)/g) ?? []
+      : [];
+  return [...new Set([
+    ...directMatches.map(modelKey),
+    ...shorthandMatches.map(modelKey),
+    ...suffixMatches.map(modelKey),
+  ])];
 }
 
 function hasExpectedBrand(offer: LiveTaobaoOffer, product: Product): boolean {

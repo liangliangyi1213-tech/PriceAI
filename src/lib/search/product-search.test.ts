@@ -146,6 +146,23 @@ describe("searchCatalog", () => {
 
     expect(row.livePinduoduoOffers).toEqual([unknownSku, differentSku]);
     expect(row.displayLowestPrice).toBe(baseline.lowestOffer?.price);
+    expect(row.selectedVariantId).toBe(baseline.selectedVariantId);
+  });
+
+  it("binds a comparable live minimum only to the explicitly selected catalog variant", () => {
+    const product = structuredClone(phones.find((item) => item.slug === "apple-iphone-16-pro")!);
+    const baseline = searchCatalog([product], { sort: "relevance" })[0];
+    const selectedVariantId = baseline.selectedVariantId!;
+    const otherVariantId = product.variants.find((variant) => variant.id !== selectedVariantId)!.id;
+    const row = searchCatalog([product], { sort: "relevance" }, new Map([[product.id, [
+      liveOffer(product.id, 1, null),
+      liveOffer(product.id, 2, otherVariantId),
+      liveOffer(product.id, 3, selectedVariantId),
+    ]]]))[0];
+
+    expect(row.selectedVariantId).toBe(selectedVariantId);
+    expect(row.comparableLiveLowestPrice).toBe(3);
+    expect(row.displayLowestPrice).toBe(3);
   });
 
   it("keeps the persisted catalog price fallback when no live data is supplied", () => {
@@ -155,13 +172,16 @@ describe("searchCatalog", () => {
     expect(row.displayLowestPrice).toBe(row.lowestOffer?.price);
   });
 
-  it("matches product names regardless of case or extra spaces", () => {
+  it("matches the explicit base model regardless of case or extra spaces without including Pro", () => {
     const rows = searchCatalog(phones, { query: "  IPHONE   16 ", sort: "relevance" });
 
-    expect(rows.map((row) => row.product.slug)).toEqual([
-      "apple-iphone-16",
-      "apple-iphone-16-pro",
-    ]);
+    expect(rows.map((row) => row.product.slug)).toEqual(["apple-iphone-16"]);
+  });
+
+  it("keeps explicit model suffixes and accessory searches out of unrelated catalog results", () => {
+    expect(searchCatalog(phones, { query: "iPhone 16 Pro Max", sort: "relevance" })).toEqual([]);
+    expect(searchCatalog(phones, { query: "小米15 Ultra", sort: "relevance" })).toEqual([]);
+    expect(searchCatalog(phones, { query: "iPhone 16 Pro 手机壳", sort: "relevance" })).toEqual([]);
   });
 
   it("matches compact product names and variant/specification text", () => {
@@ -171,6 +191,11 @@ describe("searchCatalog", () => {
       .toContain("apple-iphone-16-pro");
     expect(searchCatalog(phones, { query: "a18pro", sort: "relevance" }).map((row) => row.product.slug))
       .toContain("apple-iphone-16-pro");
+  });
+
+  it("matches an explicit model together with a known specification token", () => {
+    expect(searchCatalog(phones, { query: "iPhone 16 Pro 512GB", sort: "relevance" }).map((row) => row.product.slug))
+      .toEqual(["apple-iphone-16-pro"]);
   });
 
   it("filters one or many brands together with the keyword query", () => {

@@ -120,7 +120,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
                 {rows.map((row) => (
                   <div className="grid min-w-0 gap-3" key={row.product.id}>
                     <SearchProductCard image={imagesByProductId.get(row.product.id)} row={row}><CompareToggleButton productOptions={productOptions} productSlug={row.product.slug} /></SearchProductCard>
-                    <LiveSearchOffers pinduoduoOffers={row.livePinduoduoOffers} productName={row.product.name} taobaoOffers={row.liveTaobaoOffers} />
+                    <LiveSearchOffers pinduoduoOffers={row.livePinduoduoOffers} product={row.product} taobaoOffers={row.liveTaobaoOffers} />
                   </div>
                 ))}
               </div>
@@ -135,7 +135,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
                 </div>
               </div>
             )}
-            <p className="mt-6 text-xs leading-6 text-slate-500">比价说明：仅比较已收录的商品和报价，不代表全网最低价。卡片中的平台报价对应同一规格；购买建议仅作价格参考。不同规格价格可能不同，购买前请核对平台页面。</p>
+            <p className="mt-6 text-xs leading-6 text-slate-500">比价说明：Catalog 已收录报价按明确规格比较，但不代表已获平台实时验证或全网最低价。商品级参考价不代表同规格报价，不参与正式最低价、价格筛选、排序或 PriceAI 评分。购买前请核对平台页面的规格与条件。</p>
           </section>
         </div>
       </main>

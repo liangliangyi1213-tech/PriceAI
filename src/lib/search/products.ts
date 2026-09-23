@@ -5,6 +5,7 @@ import type { Offer, Product, ProductVariant } from "@/types/catalog";
 import type { ProductSearchQuery, ProductSearchSort } from "./query";
 import type { LivePinduoduoOffer } from "./pinduoduo-live-offer";
 import type { LiveTaobaoProductOffer } from "./taobao-live-offer";
+import { allowsPhoneCatalogMatch } from "./catalog-query-match";
 
 export type ProductSearchRow = {
   product: Product;
@@ -15,6 +16,8 @@ export type ProductSearchRow = {
   platformCount: number;
   livePinduoduoOffers: readonly LivePinduoduoOffer[];
   liveTaobaoOffers: readonly LiveTaobaoProductOffer[];
+  selectedVariantId: string | null;
+  comparableLiveLowestPrice: number | null;
   displayLowestPrice: number | null;
   relevance: number;
   catalogIndex: number;
@@ -30,6 +33,7 @@ function searchableVariantText(variant: ProductVariant): string {
 
 function getRelevance(product: Product, query: string | undefined): number {
   if (!query) return 0;
+  if (!allowsPhoneCatalogMatch(product, query)) return -1;
 
   const needle = compact(query);
   if (!needle) return 0;
@@ -39,6 +43,8 @@ function getRelevance(product: Product, query: string | undefined): number {
   const specs = compact(Object.values(product.specs).join(" "));
   const description = compact(product.description);
   const category = product.category === "phone" ? "手机phone" : product.category;
+  const searchableText = compact([product.name, product.brand, variantText, specs, description, category].join(" "));
+  const queryTokens = query.trim().toLocaleLowerCase().split(/[\s_-]+/).map(compact).filter(Boolean);
 
   if (name === needle) return 1_000;
   if (name.startsWith(needle)) return 900;
@@ -47,6 +53,7 @@ function getRelevance(product: Product, query: string | undefined): number {
   if (brand.includes(needle)) return 650;
   if (variantText.includes(needle)) return 500;
   if (specs.includes(needle)) return 400;
+  if (queryTokens.length > 1 && queryTokens.every((token) => searchableText.includes(token))) return 300;
   if (description.includes(needle) || compact(category).includes(needle)) return 200;
   return -1;
 }
@@ -91,6 +98,8 @@ function getProductMetrics(
     platformCount,
     livePinduoduoOffers,
     liveTaobaoOffers,
+    selectedVariantId: lowestEntry?.variant.id ?? null,
+    comparableLiveLowestPrice: liveLowestPrice,
     displayLowestPrice,
     relevance,
     catalogIndex,

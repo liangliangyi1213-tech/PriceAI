@@ -31,6 +31,13 @@ describe("strict Taobao phone product matching", () => {
     expect(matchTaobaoPhoneOffer(liveOffer("Apple iPhone 16 Pro / iPhone 16 Pro Max 国行"), iphone16Pro)).toMatchObject({ status: "ambiguous" });
   });
 
+  it("marks compact mixed-model shorthand as ambiguous when the repeated brand prefix is omitted", () => {
+    expect(matchTaobaoPhoneOffer(liveOffer("Apple iPhone16Pro / 16ProMax 多型号可选"), iphone16Pro))
+      .toMatchObject({ status: "ambiguous" });
+    expect(matchTaobaoPhoneOffer(liveOffer("Apple iPhone16Pro 16ProMax 多型号可选"), iphone16Pro))
+      .toMatchObject({ status: "ambiguous" });
+  });
+
   it("allows an exact Xiaomi 15 title without conflicting Pro or Ultra suffixes", () => {
     expect(matchTaobaoPhoneOffer(liveOffer("小米15 全新国行手机", "小米"), xiaomi15)).toMatchObject({ status: "matched", product: xiaomi15 });
   });
