@@ -5,7 +5,8 @@ import type { Offer, Product, ProductVariant } from "@/types/catalog";
 import type { ProductSearchQuery, ProductSearchSort } from "./query";
 import type { LivePinduoduoOffer } from "./pinduoduo-live-offer";
 import type { LiveTaobaoProductOffer } from "./taobao-live-offer";
-import { allowsPhoneCatalogMatch } from "./catalog-query-match";
+import { allowsPhoneCatalogMatch, matchesCatalogProductBrand, normalizeCatalogBrandAliases } from "./catalog-query-match";
+import { canParticipateInComparablePrice } from "@/lib/matching/evidence";
 
 export type ProductSearchRow = {
   product: Product;
@@ -35,16 +36,16 @@ function getRelevance(product: Product, query: string | undefined): number {
   if (!query) return 0;
   if (!allowsPhoneCatalogMatch(product, query)) return -1;
 
-  const needle = compact(query);
+  const needle = compact(normalizeCatalogBrandAliases(query));
   if (!needle) return 0;
-  const name = compact(product.name);
-  const brand = compact(product.brand);
+  const name = compact(normalizeCatalogBrandAliases(product.name));
+  const brand = compact(normalizeCatalogBrandAliases(product.brand));
   const variantText = compact(product.variants.map(searchableVariantText).join(" "));
   const specs = compact(Object.values(product.specs).join(" "));
   const description = compact(product.description);
   const category = product.category === "phone" ? "手机phone" : product.category;
-  const searchableText = compact([product.name, product.brand, variantText, specs, description, category].join(" "));
-  const queryTokens = query.trim().toLocaleLowerCase().split(/[\s_-]+/).map(compact).filter(Boolean);
+  const searchableText = compact(normalizeCatalogBrandAliases([product.name, product.brand, variantText, specs, description, category].join(" ")));
+  const queryTokens = normalizeCatalogBrandAliases(query).trim().split(/[\s_-]+/).map(compact).filter(Boolean);
 
   if (name === needle) return 1_000;
   if (name.startsWith(needle)) return 900;
@@ -78,7 +79,7 @@ function getProductMetrics(
   const sales = lowestOffer && Number.isFinite(lowestOffer.sales) ? lowestOffer.sales : null;
   const platformCount = new Set(variantOffers.map((entry) => entry.offer.platform)).size;
   const comparableLiveOffers = lowestEntry
-    ? livePinduoduoOffers.filter((offer) => offer.variantId === lowestEntry.variant.id)
+    ? livePinduoduoOffers.filter((offer) => canParticipateInComparablePrice(offer, lowestEntry.variant.id))
     : [];
   const liveLowestPrice = comparableLiveOffers.reduce<number | null>((lowest, offer) => {
     if (!Number.isFinite(offer.price) || offer.price <= 0) return lowest;
@@ -108,8 +109,7 @@ function getProductMetrics(
 
 function matchesBrands(product: Product, brands: string[] | undefined): boolean {
   if (!brands?.length) return true;
-  const productBrand = compact(product.brand);
-  return brands.some((brand) => compact(brand) === productBrand);
+  return brands.some((brand) => matchesCatalogProductBrand(product, brand));
 }
 
 function hasMetricInRange(value: number | null | undefined, min: number | undefined, max: number | undefined): boolean {

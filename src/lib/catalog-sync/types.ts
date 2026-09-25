@@ -1,5 +1,6 @@
 import type { MarketplaceId, PlatformAdapterId, PlatformSearchResult } from "@/lib/platforms/types";
 import type { Product, ProductVariant } from "@/types/catalog";
+import type { ProductMatchResult, VariantEvidence, VariantMatchResult } from "@/lib/matching/evidence";
 
 export type NormalizedPlatformProduct = {
   platform: MarketplaceId;
@@ -20,6 +21,9 @@ export type NormalizedPlatformProduct = {
   imageUrl: string | null;
   productUrl: string | null;
   collectedAt: string;
+  titleVariantEvidence: VariantEvidence;
+  titleVariantConflict: boolean;
+  structuredVariantEvidence: VariantEvidence | null;
 };
 
 export type NormalizationRejection = { input: PlatformSearchResult; reason: string };
@@ -32,6 +36,8 @@ export type MatchedOffer = {
   product: Product;
   variant: ProductVariant;
   offerIdentity: string;
+  productMatch: Extract<ProductMatchResult, { status: "matched" }>;
+  variantMatch: Extract<VariantMatchResult, { status: "matched" }>;
 };
 
 export type CatalogSyncPlan = {

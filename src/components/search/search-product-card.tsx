@@ -5,6 +5,7 @@ import { PriceAIScore } from "@/components/home/priceai-score";
 import type { CatalogImageResolution } from "@/lib/catalog-images/types";
 import { formatPrice } from "@/lib/pricing/offers";
 import type { ProductSearchRow } from "@/lib/search/products";
+import { catalogProductBrandLabel } from "@/lib/search/catalog-query-match";
 import type { Offer } from "@/types/catalog";
 import { catalogOfferSourceDisclosure, catalogOfferSourceLabel, catalogScoreSourceDisclosure, categoryLabel, productCardDetails, purchaseOpinion } from "./presentation";
 import { specificationSummary } from "./specification-summary";
@@ -38,7 +39,7 @@ export function SearchProductCard({ row, image = noImage, children }: { row: Pro
         <span className="absolute left-3 top-3 rounded-full border border-white bg-white/90 px-2.5 py-1 text-xs font-medium text-slate-600">{categoryLabel(product.category)}</span>
       </Link>
       <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
-        <p className="mb-1 text-xs font-medium text-slate-500">{product.brand}</p>
+        <p className="mb-1 text-xs font-medium text-slate-500">{catalogProductBrandLabel(product)}</p>
         <h3 className="text-xl font-bold leading-7 tracking-tight text-slate-950 [overflow-wrap:anywhere]">
           <Link className="hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-600" href={href} prefetch={false}>{product.name}</Link>
         </h3>

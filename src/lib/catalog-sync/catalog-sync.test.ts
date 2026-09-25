@@ -20,6 +20,10 @@ const valid = {
   rating: 4.9,
   sales: 12000,
   productUrl: "https://example.test/products/iphone",
+  variantEvidence: {
+    source: "structured" as const,
+    attributes: { storage: "256GB", color: "黑色", region: "国行", condition: "全新" as const },
+  },
 };
 
 describe("catalog sync normalization and matching", () => {
@@ -46,6 +50,34 @@ describe("catalog sync normalization and matching", () => {
     expect(mismatch.matchedOffers[0].product.slug).toBe("apple-iphone-16");
     const wrongStorage = buildCatalogSyncPlan([{ ...valid, title: "Apple iPhone 16 Pro 512GB 黑色" }], phones);
     expect(wrongStorage.unmatchedItems).toHaveLength(1);
+  });
+
+  it("lets conflicting title attributes veto otherwise structured variant evidence", () => {
+    const plan = buildCatalogSyncPlan([{
+      ...valid,
+      title: "Apple iPhone 16 Pro 256GB / 512GB 黑色",
+    }], phones);
+
+    expect(plan.matchedOffers).toHaveLength(0);
+    expect(plan.unmatchedItems).toHaveLength(1);
+  });
+
+  it("keeps title-only variant evidence out of the formal Offer write plan", () => {
+    const titleOnly = { ...valid, variantEvidence: undefined };
+    const plan = buildCatalogSyncPlan([titleOnly], phones);
+
+    expect(plan.matchedOffers).toHaveLength(0);
+    expect(plan.unmatchedItems).toHaveLength(1);
+  });
+
+  it("marks a title containing mutually exclusive phone models ambiguous", () => {
+    const plan = buildCatalogSyncPlan([{
+      ...valid,
+      title: "Apple iPhone 16 Pro / iPhone 16 Pro Max 多型号可选",
+    }], phones);
+
+    expect(plan.matchedOffers).toHaveLength(0);
+    expect(plan.ambiguousItems).toHaveLength(1);
   });
 
   it("keeps unmatched, ambiguous and rejected records isolated in the plan", () => {
@@ -103,7 +135,15 @@ describe("catalog sync service", () => {
         .mockResolvedValue(undefined),
       recordPriceSnapshotIfNeeded: vi.fn().mockResolvedValue({ recorded: true }),
     };
-    const plan = buildCatalogSyncPlan([valid, { ...valid, externalVariantId: "apple-iphone-16-pro-512-white", title: "Apple iPhone 16 Pro 512GB 白色" }], phones);
+    const plan = buildCatalogSyncPlan([valid, {
+      ...valid,
+      externalVariantId: "apple-iphone-16-pro-512-white",
+      title: "Apple iPhone 16 Pro 512GB 白色",
+      variantEvidence: {
+        source: "structured",
+        attributes: { storage: "512GB", color: "白色", region: "国行", condition: "全新" },
+      },
+    }], phones);
     const result = await createCatalogSyncService({ writer, products: phones }).persistPlan(plan);
     expect(result.persisted).toBe(1);
     expect(result.writeFailures).toHaveLength(1);

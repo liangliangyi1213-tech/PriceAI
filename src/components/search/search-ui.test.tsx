@@ -11,6 +11,8 @@ function liveOffer(overrides: Partial<LivePinduoduoOffer> = {}): LivePinduoduoOf
   return {
     productId: phones[0].id,
     variantId: phones[0].variants[0].id,
+    productMatch: { status: "matched", evidenceSource: "title_only", productId: phones[0].id },
+    variantMatch: { status: "matched", evidenceSource: "structured", variantId: phones[0].variants[0].id },
     goodsId: "live-1",
     title: "Apple iPhone 16 实时商品标题",
     image: { platform: "pinduoduo", externalProductId: "live-1", url: "https://img.pddpic.com/live-phone.jpg", alt: "iPhone 16 Pro" },
@@ -314,6 +316,23 @@ describe("live Taobao offer presentation", () => {
     expect((html.match(/商品级参考价/g) ?? []).length).toBeGreaterThanOrEqual(2);
     expect(html).toContain("具体规格未确认");
     expect(html).toContain("不参与同规格最低价、价格筛选、排序或 PriceAI 评分");
+  });
+
+  it("does not label a title-only listing as same-spec even if it carries a variantId", async () => {
+    const { LiveSearchOffers } = await import("./live-search-offers");
+    const variantId = phones[0].variants[0].id;
+    const html = renderToStaticMarkup(<LiveSearchOffers
+      pinduoduoOffers={[liveOffer({
+        variantId,
+        variantMatch: { status: "insufficient_evidence", evidenceSource: "title_only", variantId: null },
+      })]}
+      product={phones[0]}
+      taobaoOffers={[]}
+    />);
+
+    expect(html).toContain("商品级参考价");
+    expect(html).toContain("具体规格未确认");
+    expect(html).not.toContain("同规格实时价格");
   });
 
   it("deduplicates exact items and conservative same-shop near-duplicates before sorting", async () => {

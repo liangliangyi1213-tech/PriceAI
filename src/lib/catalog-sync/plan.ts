@@ -16,9 +16,12 @@ export function buildCatalogSyncPlan(inputs: PlatformSearchResult[], products: P
     if (!normalized.ok) { plan.rejectedItems.push(normalized.rejection); continue; }
     plan.summary.normalized++;
     const match = matchPhoneProduct(normalized.value, products);
-    if (match.status === "unmatched") { plan.unmatchedItems.push(normalized.value); continue; }
-    if (match.status === "ambiguous") { plan.ambiguousItems.push(normalized.value); continue; }
-    plan.matchedOffers.push({ normalized: normalized.value, product: match.product, variant: match.variant, offerIdentity: createOfferIdentity(normalized.value.platform, normalized.value.externalProductId, normalized.value.externalVariantId ?? undefined, normalized.value.storage, normalized.value.color) });
+    if (match.status !== "matched") {
+      if (match.status === "ambiguous") plan.ambiguousItems.push(normalized.value);
+      else plan.unmatchedItems.push(normalized.value);
+      continue;
+    }
+    plan.matchedOffers.push({ normalized: normalized.value, product: match.product, variant: match.variant, productMatch: match.productMatch, variantMatch: match.variantMatch, offerIdentity: createOfferIdentity(normalized.value.platform, normalized.value.externalProductId, normalized.value.externalVariantId ?? undefined, match.variant.storage, match.variant.color) });
   }
   plan.summary.rejected = plan.rejectedItems.length; plan.summary.matched = plan.matchedOffers.length; plan.summary.unmatched = plan.unmatchedItems.length; plan.summary.ambiguous = plan.ambiguousItems.length;
   return plan;

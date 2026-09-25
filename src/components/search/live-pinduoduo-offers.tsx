@@ -1,4 +1,5 @@
 import { livePinduoduoOfferFacts } from "@/components/search/presentation";
+import { canParticipateInComparablePrice } from "@/lib/matching/evidence";
 import type { LivePinduoduoOffer } from "@/lib/search/pinduoduo-live-offer";
 import type { Product } from "@/types/catalog";
 import { LivePlatformOffers, type LivePlatformListing } from "./live-platform-offers";
@@ -10,7 +11,7 @@ export function LivePinduoduoOffers({ offers, product }: { offers: readonly Live
     const variant = offer.productId === product.id && offer.variantId
       ? product.variants.find((candidate) => candidate.id === offer.variantId)
       : undefined;
-    const comparable = Boolean(variant);
+    const comparable = Boolean(variant && canParticipateInComparablePrice(offer, variant.id));
     return {
       id: `${offer.goodsId}-${index}`,
       title: offer.title,

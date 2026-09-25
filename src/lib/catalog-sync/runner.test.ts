@@ -38,7 +38,7 @@ describe("CatalogSyncRunner", () => {
     expect(recommendationAdapter.searchProducts).not.toHaveBeenCalled();
   });
 
-  it("does not count matched recommendations with incomplete offer metadata as writable", async () => {
+  it("keeps title-only recommendations out of the matched and writable counts", async () => {
     const recommendationAdapter: PlatformAdapter = {
       id: "pdd",
       searchProducts: vi.fn(),
@@ -57,7 +57,8 @@ describe("CatalogSyncRunner", () => {
     const result = await createCatalogSyncRunner({ products: phones, writer: writer(), runRepository: runRepository(), getAdapter: () => recommendationAdapter })
       .runCatalogSync({ platform: "pdd", query: "推荐商品池", dryRun: true });
 
-    expect(result.preview.matchedCount).toBe(1);
+    expect(result.preview.matchedCount).toBe(0);
+    expect(result.preview.unmatchedCount).toBe(1);
     expect(result.preview.offerUpserts).toBe(0);
     expect(result.preview.priceHistorySnapshots).toBe(0);
   });
@@ -119,7 +120,7 @@ describe("CatalogSyncRunner", () => {
     const mixed: PlatformAdapter = {
       id: "mock",
       searchProducts: vi.fn().mockResolvedValue([
-        { platform: "jd", externalProductId: "apple-iphone-16-pro", externalVariantId: "valid", title: "Apple iPhone 16 Pro 256GB 黑色", price: 7599, shopName: "商城", rating: 4.9, sales: 100, productUrl: "https://example.test/a" },
+        { platform: "jd", externalProductId: "apple-iphone-16-pro", externalVariantId: "valid", title: "Apple iPhone 16 Pro 256GB 黑色", price: 7599, shopName: "商城", rating: 4.9, sales: 100, productUrl: "https://example.test/a", variantEvidence: { source: "structured", attributes: { storage: "256GB", color: "黑色", region: "国行", condition: "全新" } } },
         { platform: "jd", externalProductId: "unknown", externalVariantId: "unknown", title: "Unknown Phone 256GB 黑色", price: 1000, shopName: "商城", rating: 4.9, sales: 100, productUrl: "https://example.test/b" },
         { platform: "jd", externalProductId: "apple-iphone-16-pro", externalVariantId: "bad", title: "Apple iPhone 16 Pro 256GB 黑色", price: -1, shopName: "商城", rating: 4.9, sales: 100, productUrl: "https://example.test/c" },
       ]),

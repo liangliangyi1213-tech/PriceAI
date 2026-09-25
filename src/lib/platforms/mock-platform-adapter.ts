@@ -1,5 +1,5 @@
 import { searchProducts } from "@/lib/search/products";
-import type { Offer, Product } from "@/types/catalog";
+import type { Offer, Product, ProductVariant } from "@/types/catalog";
 
 import type {
   MarketplaceId,
@@ -25,7 +25,7 @@ function sortResults(results: PlatformSearchResult[], sort: PlatformSearchSort |
   return results;
 }
 
-function normalizeOffer(product: Product, offer: Offer): PlatformSearchResult {
+function normalizeOffer(product: Product, variant: ProductVariant, offer: Offer): PlatformSearchResult {
   const productUrl = offer.url === "#" ? `https://mock.priceai.local/offers/${encodeURIComponent(offer.id)}` : offer.url;
   return {
     platform: offerPlatformMap[offer.platform as keyof typeof offerPlatformMap],
@@ -40,6 +40,15 @@ function normalizeOffer(product: Product, offer: Offer): PlatformSearchResult {
     rating: offer.rating,
     promotion: offer.originalPrice === undefined ? undefined : { originalPrice: offer.originalPrice },
     productUrl,
+    variantEvidence: {
+      source: "structured",
+      attributes: {
+        storage: variant.storage,
+        color: variant.color,
+        region: variant.region,
+        condition: variant.condition,
+      },
+    },
   };
 }
 
@@ -56,7 +65,7 @@ export class MockPlatformAdapter implements PlatformAdapter {
     if (!query.trim()) return [];
 
     const normalized = searchProducts(this.products, query)
-      .flatMap((product) => product.variants.flatMap((variant) => variant.offers.map((offer) => normalizeOffer(product, offer))))
+      .flatMap((product) => product.variants.flatMap((variant) => variant.offers.map((offer) => normalizeOffer(product, variant, offer))))
       .filter((result) => options.minPrice === undefined || result.price >= options.minPrice)
       .filter((result) => options.maxPrice === undefined || result.price <= options.maxPrice);
     const sorted = sortResults(normalized, options.sort);

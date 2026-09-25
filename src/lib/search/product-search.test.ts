@@ -23,6 +23,10 @@ function liveOffer(productId: string, price: number, variantId: string | null = 
   return {
     productId,
     variantId,
+    productMatch: { status: "matched", evidenceSource: "title_only", productId },
+    variantMatch: variantId
+      ? { status: "matched", evidenceSource: "structured", variantId }
+      : { status: "insufficient_evidence", evidenceSource: "none", variantId: null },
     goodsId: `live-${productId}`,
     title: "实时商品",
     image: null,
@@ -78,6 +82,50 @@ describe("ProductSearchQuery parsing", () => {
 });
 
 describe("searchCatalog", () => {
+  it.each([
+    ["Xiaomi 15", "xiaomi-15"],
+    ["小米 15", "xiaomi-15"],
+    ["Xiaomi", "xiaomi-15"],
+    ["苹果 iPhone 16 Pro", "apple-iphone-16-pro"],
+    ["Huawei Mate 70 Pro", "huawei-mate-70-pro"],
+    ["OPPO Find X8", "oppo-find-x8"],
+    ["vivo X200", "vivo-x200"],
+    ["iPhone 16 Pro", "apple-iphone-16-pro"],
+  ])("matches controlled brand aliases in Product search: %s", (query, expectedSlug) => {
+    expect(searchCatalog(phones, { query, sort: "relevance" }).map((row) => row.product.slug))
+      .toContain(expectedSlug);
+  });
+
+  it.each([
+    ["Xiaomi 15 Ultra", "xiaomi-15"],
+    ["iPhone 16 Pro Max", "apple-iphone-16-pro"],
+  ])("does not weaken explicit model boundaries in Product search: %s", (query, excludedSlug) => {
+    expect(searchCatalog(phones, { query, sort: "relevance" }).map((row) => row.product.slug))
+      .not.toContain(excludedSlug);
+  });
+
+  it("keeps Xiaomi and REDMI as separate consumer brand identities", () => {
+    const xiaomiResults = searchCatalog(phones, { query: "Xiaomi", sort: "relevance" }).map((row) => row.product.slug);
+    const redmiResults = searchCatalog(phones, { query: "Redmi", sort: "relevance" }).map((row) => row.product.slug);
+
+    expect(xiaomiResults).toContain("xiaomi-15");
+    expect(xiaomiResults).not.toContain("xiaomi-redmi-k80");
+    expect(redmiResults).toContain("xiaomi-redmi-k80");
+    expect(redmiResults).not.toContain("xiaomi-15");
+  });
+
+  it.each(["REDMI K80", "红米 K80"])("matches the REDMI product line without merging it into Xiaomi: %s", (query) => {
+    expect(searchCatalog(phones, { query, sort: "relevance" }).map((row) => row.product.slug))
+      .toContain("xiaomi-redmi-k80");
+  });
+
+  it("keeps Xiaomi and REDMI separate in brand filtering", () => {
+    expect(searchCatalog(phones, { brands: ["小米"], sort: "relevance" }).map((row) => row.product.slug))
+      .not.toContain("xiaomi-redmi-k80");
+    expect(searchCatalog(phones, { brands: ["REDMI"], sort: "relevance" }).map((row) => row.product.slug))
+      .toEqual(["xiaomi-redmi-k80"]);
+  });
+
   it("keeps product-level Taobao listings out of price, sorting, filtering, and score metrics", () => {
     const product = structuredClone(phones.find((item) => item.slug === "xiaomi-15")!);
     const baseline = searchCatalog([product], { sort: "relevance" })[0];
@@ -147,6 +195,22 @@ describe("searchCatalog", () => {
     expect(row.livePinduoduoOffers).toEqual([unknownSku, differentSku]);
     expect(row.displayLowestPrice).toBe(baseline.lowestOffer?.price);
     expect(row.selectedVariantId).toBe(baseline.selectedVariantId);
+  });
+
+  it("does not let a non-null variantId bypass title-only evidence", () => {
+    const product = structuredClone(phones.find((item) => item.slug === "apple-iphone-16-pro")!);
+    const baseline = searchCatalog([product], { sort: "relevance" })[0];
+    const titleOnly = {
+      ...liveOffer(product.id, 1, baseline.selectedVariantId),
+      variantMatch: { status: "insufficient_evidence", evidenceSource: "title_only", variantId: null } as const,
+    };
+
+    const row = searchCatalog([product], { maxPrice: 100, sort: "price_asc" }, new Map([[product.id, [titleOnly]]]));
+
+    expect(row).toEqual([]);
+    const result = searchCatalog([product], { sort: "relevance" }, new Map([[product.id, [titleOnly]]]))[0];
+    expect(result.displayLowestPrice).toBe(baseline.displayLowestPrice);
+    expect(result.valueScore).toBe(baseline.valueScore);
   });
 
   it("binds a comparable live minimum only to the explicitly selected catalog variant", () => {
@@ -232,7 +296,7 @@ describe("searchCatalog", () => {
       sort: "score_desc",
     });
 
-    expect(rows.map((row) => row.product.slug)).toEqual(["xiaomi-redmi-k80", "xiaomi-15"]);
+    expect(rows.map((row) => row.product.slug)).toEqual(["xiaomi-15"]);
   });
 
   it("sorts predictably by lowest price and score", () => {

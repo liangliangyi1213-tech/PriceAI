@@ -1,6 +1,7 @@
 import type { PlatformSearchResult } from "@/lib/platforms/types";
 
 import type { NormalizationResult, NormalizedPlatformProduct } from "./types";
+import type { ProductVariant } from "@/types/catalog";
 
 const brandRules = [
   { brand: "Apple", aliases: ["apple", "iphone"] },
@@ -37,6 +38,28 @@ function extractColor(value: string): string | null {
   return colors.find((color) => value.includes(color)) ?? null;
 }
 
+function extractRegion(value: string): string | null {
+  if (/国行版?|大陆版/.test(value)) return "国行";
+  if (/港行|港版/.test(value)) return "港版";
+  return value.match(/[\u3400-\u9fff]{1,6}版/)?.[0] ?? null;
+}
+
+function extractCondition(value: string): ProductVariant["condition"] | null {
+  const values = [...new Set((value.match(/二手|官翻|翻新|全新/g) ?? []).map((item) => item === "翻新" ? "官翻" : item))];
+  return values.length === 1 ? values[0] as ProductVariant["condition"] : null;
+}
+
+function hasConflictingTitleVariantEvidence(value: string): boolean {
+  const storages = new Set([...value.matchAll(/(\d+)\s*(gb|g|tb|t)\b/gi)]
+    .map((match) => `${match[1]}${match[2].toUpperCase().startsWith("T") ? "TB" : "GB"}`));
+  const titleColors = new Set(colors.filter((color) => value.includes(color)));
+  const regions = new Set((value.match(/国行版?|大陆版|港行|港版|[\u3400-\u9fff]{1,6}版/g) ?? [])
+    .map((region) => /^(?:国行|国行版|大陆版)$/.test(region) ? "国行" : /^(?:港行|港版)$/.test(region) ? "港版" : region));
+  const conditions = new Set((value.match(/二手|官翻|翻新|全新/g) ?? [])
+    .map((condition) => condition === "翻新" ? "官翻" : condition));
+  return [storages, titleColors, regions, conditions].some((values) => values.size > 1);
+}
+
 function extractBrand(value: string): string | null {
   const normalized = normalizeText(value);
   return brandRules.find((rule) => rule.aliases.some((alias) => normalized.includes(alias)))?.brand ?? null;
@@ -70,6 +93,8 @@ export function normalizePlatformSearchResult(input: PlatformSearchResult, colle
   const color = extractColor(allText);
   const brand = extractBrand(allText);
   const model = extractModel(title, externalProductId, brand);
+  const region = extractRegion(allText);
+  const condition = extractCondition(allText);
   const rating = Number.isFinite(input.rating) && (input.rating ?? 0) >= 0 && (input.rating ?? 0) <= 5 ? input.rating! : null;
   const sales = Number.isFinite(input.sales) && (input.sales ?? 0) >= 0 ? Math.floor(input.sales!) : null;
   const originalPrice = Number.isFinite(input.originalPrice) && (input.originalPrice ?? 0) >= input.price ? input.originalPrice! : null;
@@ -77,6 +102,23 @@ export function normalizePlatformSearchResult(input: PlatformSearchResult, colle
     platform: input.platform, externalProductId, externalVariantId: input.externalVariantId?.trim() || null, title,
     normalizedTitle: compactText(title), brand, model, storage, color, price: input.price, originalPrice, currency: "CNY", shopName,
     rating, sales, imageUrl: optionalUrl(input.imageUrl), productUrl: optionalUrl(input.productUrl), collectedAt: new Date(collectedAt).toISOString(),
+    titleVariantEvidence: {
+      source: storage || color || region || condition ? "title_only" : "none",
+      attributes: {
+        ...(storage ? { storage } : {}),
+        ...(color ? { color } : {}),
+        ...(region ? { region } : {}),
+        ...(condition ? { condition } : {}),
+      },
+    },
+    titleVariantConflict: hasConflictingTitleVariantEvidence(allText),
+    structuredVariantEvidence: input.variantEvidence?.source === "structured"
+      ? {
+          source: "structured",
+          attributes: Object.fromEntries(Object.entries(input.variantEvidence.attributes)
+            .filter(([key, attribute]) => ["storage", "color", "region", "condition"].includes(key) && attribute.trim())),
+        }
+      : null,
   };
   return { ok: true, value };
 }

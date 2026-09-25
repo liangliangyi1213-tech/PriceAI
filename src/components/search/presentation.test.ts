@@ -8,6 +8,8 @@ function liveOffer(overrides: Partial<LivePinduoduoOffer> = {}): LivePinduoduoOf
   return {
     productId: phones[0].id,
     variantId: null,
+    productMatch: { status: "matched", evidenceSource: "title_only", productId: phones[0].id },
+    variantMatch: { status: "insufficient_evidence", evidenceSource: "title_only", variantId: null },
     goodsId: "live-1",
     title: "Apple iPhone 16 256GB",
     image: { platform: "pinduoduo", externalProductId: "live-1", url: "https://img.pddpic.com/live-phone.jpg", alt: "iPhone 16 Pro" },

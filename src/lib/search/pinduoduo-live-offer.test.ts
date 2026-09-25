@@ -43,11 +43,16 @@ describe("live Pinduoduo offers", () => {
     expect(searchCatalog([pro], { sort: "price_asc", maxPrice: 100 }, live)).toEqual([]);
     expect(searchCatalog([pro, product], { sort: "price_asc" }, live).map((row) => row.product.id)).toEqual([product.id, pro.id]);
   });
-  it("still lets a genuine phone offer set the product-level live minimum", () => {
+  it("keeps a genuine title-only phone offer at product level instead of lowering the comparable minimum", () => {
     const pro = phones[0];
     const live = selectLivePinduoduoOffers([pro], "iphone16pro", [goods({ goodsName: "Apple iPhone16 Pro 256GB 黑色 全新手机 OLED display", categoryName: null, minNormalPrice: 7000 })]);
-    expect(searchCatalog([pro], { sort: "relevance" }, live)[0].displayLowestPrice).toBe(7000);
+    expect(searchCatalog([pro], { sort: "relevance" }, live)[0].displayLowestPrice).toBe(7599);
     expect(live.get(pro.id)).toHaveLength(1);
+    expect(live.get(pro.id)![0]).toMatchObject({
+      variantId: null,
+      productMatch: { status: "matched", evidenceSource: "title_only", productId: pro.id },
+      variantMatch: { status: "insufficient_evidence", evidenceSource: "title_only", variantId: null },
+    });
   });
   it("never lets replacement parts or another model lower the live phone price", () => {
     const selected = selectLivePinduoduoOffers([product], "iphone16", [
@@ -58,6 +63,16 @@ describe("live Pinduoduo offers", () => {
     ]).get(product.id)!;
     expect(selected.map((offer) => offer.goodsId)).toEqual(["123"]);
     expect(Math.min(...selected.map((offer) => offer.price))).toBe(5000);
+  });
+  it("does not place a mixed Pro and Pro Max listing under either exact product", () => {
+    const pro = phones.find((item) => item.slug === "apple-iphone-16-pro")!;
+    const selected = selectLivePinduoduoOffers(
+      [pro],
+      "iphone16pro",
+      [goods({ goodsName: "Apple iPhone 16 Pro / iPhone 16 Pro Max 多型号可选手机" })],
+    );
+
+    expect(selected.size).toBe(0);
   });
   it.each([
     "Apple iPhone16 256GB 蓝色 全新手机",
@@ -72,14 +87,15 @@ describe("live Pinduoduo offers", () => {
     const [offer] = selectLivePinduoduoOffers([product], "iphone16", [goods({ goodsName: title })]).get(product.id)!;
     expect(offer.variantId).toBeNull();
   });
-  it("assigns the variant when all explicit attributes agree", () => {
+  it("does not assign a comparable variant when all title attributes agree", () => {
     const [offer] = selectLivePinduoduoOffers([product], "iphone16", [goods({ goodsName: "Apple iPhone16 256GB 黑色 国行 全新手机" })]).get(product.id)!;
-    expect(offer.variantId).toBe(product.variants[0].id);
+    expect(offer.variantId).toBeNull();
+    expect(offer.variantMatch).toEqual({ status: "insufficient_evidence", evidenceSource: "title_only", variantId: null });
   });
   it("maps honest metadata and a matching variant without mutating the catalog", () => {
     const before = structuredClone(product);
     const [offer] = selectLivePinduoduoOffers([product], "iphone16", [goods({ hasCoupon: true, couponPrice: 100, couponMinOrderAmount: 1000, extraCouponAmount: 20 })]).get(product.id)!;
-    expect(offer).toMatchObject({ productId: product.id, variantId: product.variants[0].id, goodsId: "123", title: "Apple iPhone16 256GB 黑色 手机", image: { platform: "pinduoduo", externalProductId: "123", url: "https://img.pddpic.com/phone.jpg", alt: "iPhone 16" }, merchant: "品牌商城", price: 5000, normalPrice: 5000, source: "live", fetchedAt: "2026-09-05T00:00:00.000Z", salesTip: "1.2万+", sales: 12000, promotionRate: 20, hasCoupon: true, couponAmount: 100, couponMinOrderAmount: 1000, extraCouponAmount: 20 });
+    expect(offer).toMatchObject({ productId: product.id, variantId: null, goodsId: "123", title: "Apple iPhone16 256GB 黑色 手机", image: { platform: "pinduoduo", externalProductId: "123", url: "https://img.pddpic.com/phone.jpg", alt: "iPhone 16" }, merchant: "品牌商城", price: 5000, normalPrice: 5000, source: "live", fetchedAt: "2026-09-05T00:00:00.000Z", salesTip: "1.2万+", sales: 12000, promotionRate: 20, hasCoupon: true, couponAmount: 100, couponMinOrderAmount: 1000, extraCouponAmount: 20 });
     expect(offer).not.toHaveProperty("rating");
     expect(offer).not.toHaveProperty("reviewCount");
     expect(offer).not.toHaveProperty("url");
@@ -128,10 +144,10 @@ describe("live Pinduoduo offers", () => {
       missingPhoneEvidencePairCount: 0, emptyQueryPairCount: 0,
       invalidPriceCount: 1,
       invalidIdentityCount: 0, eligibleCount: 2, deduplicatedCount: 1,
-      selectedCount: 1, matchedProductCount: 1, matchedVariantCount: 1,
+      selectedCount: 1, matchedProductCount: 1, matchedVariantCount: 0,
       variantStorageMismatchCount: 0, variantColorMismatchCount: 0,
       variantRegionMismatchCount: 0, variantConditionMismatchCount: 0,
-      variantInsufficientEvidenceCount: 0, variantAmbiguousMatchCount: 0,
+      variantInsufficientEvidenceCount: 2, variantAmbiguousMatchCount: 0,
     });
     expect(JSON.stringify(result.diagnostics)).not.toMatch(/iphone|品牌商城|goodsId|title/i);
   });
@@ -150,8 +166,8 @@ describe("live Pinduoduo offers", () => {
       variantColorMismatchCount: 1,
       variantRegionMismatchCount: 1,
       variantConditionMismatchCount: 1,
-      variantInsufficientEvidenceCount: 1,
-      variantAmbiguousMatchCount: 0,
+      variantInsufficientEvidenceCount: 0,
+      variantAmbiguousMatchCount: 1,
       matchedVariantCount: 0,
     });
     expect(JSON.stringify(result.diagnostics)).not.toMatch(/iphone|128GB|蓝色|港版|goodsId|title/i);

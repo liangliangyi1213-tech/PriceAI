@@ -1,4 +1,10 @@
 import { selectLiveListingImage, type LiveListingImage } from "@/lib/images/live-listing-image";
+import {
+  isComparableVariantMatch,
+  matchVariantEvidence,
+  type ProductMatchResult,
+  type VariantMatchResult,
+} from "@/lib/matching/evidence";
 import type { PinduoduoGoods } from "@/lib/platforms/pinduoduo-client";
 import type { Product } from "@/types/catalog";
 import { classifyPinduoduoGoodsWithReason, pinduoduoTokens, scorePinduoduoRelevance, type PinduoduoClassificationReason } from "./pinduoduo-relevance";
@@ -9,6 +15,8 @@ type ComparablePrice = { price: number; normalPrice?: number; groupPrice?: numbe
 export type LivePinduoduoOffer = ComparablePrice & {
   productId: string;
   variantId: string | null;
+  productMatch: ProductMatchResult;
+  variantMatch: VariantMatchResult;
   goodsId: string;
   title: string;
   image: LiveListingImage | null;
@@ -97,10 +105,10 @@ function salesFromTip(tip: string | null): number | null {
   return nonNegative(value) ? value : null;
 }
 
-type VariantMatchResult = { variantId: string | null; rejectionReason?:
+type PinduoduoVariantAnalysis = { match: VariantMatchResult; rejectionReason?:
   | "storage" | "color" | "region" | "condition" | "insufficient_evidence" | "ambiguous" };
 
-function matchingVariant(product: Product, title: string): VariantMatchResult {
+function matchingVariant(product: Product, title: string): PinduoduoVariantAnalysis {
   const normalized = pinduoduoTokens(title).join(" ");
   const storages = normalized.match(/\d+ (?:gb|tb)\b/g) ?? [];
   const conditions = (title.match(/二手|官翻|翻新|全新/g) ?? []).map((condition) => condition === "翻新" ? "官翻" : condition);
@@ -113,30 +121,40 @@ function matchingVariant(product: Product, title: string): VariantMatchResult {
   const regionAlias = (region: string) => /^(?:国行|国行版|大陆版)$/.test(region) ? "国行" : region === "港行" ? "港版" : region;
   const regions = (title.match(/国行版?|港行|[\u3400-\u9fff]{1,6}版/g) ?? []).map(regionAlias);
   if (/颜色随机|随机颜色|随机色|多色可选|版本随机|地区随机/.test(title)) {
-    return { variantId: null, rejectionReason: "ambiguous" };
+    return { match: { status: "ambiguous", evidenceSource: "title_only", variantId: null }, rejectionReason: "ambiguous" };
   }
   if (storages.length && !product.variants.some((variant) => storages.every((storage) => storage === pinduoduoTokens(variant.storage).join(" ")))) {
-    return { variantId: null, rejectionReason: "storage" };
+    return { match: { status: "conflict", evidenceSource: "title_only", variantId: null }, rejectionReason: "storage" };
   }
   if (colors.length && !product.variants.some((variant) => colors.every((color) => color === variant.color))) {
-    return { variantId: null, rejectionReason: "color" };
+    return { match: { status: "conflict", evidenceSource: "title_only", variantId: null }, rejectionReason: "color" };
   }
   if (regions.length && !product.variants.some((variant) => regions.every((region) => region === regionAlias(variant.region)))) {
-    return { variantId: null, rejectionReason: "region" };
+    return { match: { status: "conflict", evidenceSource: "title_only", variantId: null }, rejectionReason: "region" };
   }
   if (conditions.length && !product.variants.some((variant) => conditions.every((condition) => variant.condition === condition))) {
-    return { variantId: null, rejectionReason: "condition" };
+    return { match: { status: "conflict", evidenceSource: "title_only", variantId: null }, rejectionReason: "condition" };
   }
-  if (!storages.length && !colors.length) return { variantId: null, rejectionReason: "insufficient_evidence" };
-  const matches = product.variants.filter((variant) =>
-    (!storages.length || storages.every((storage) => storage === pinduoduoTokens(variant.storage).join(" ")))
-    && conditions.every((condition) => variant.condition === condition)
-    && colors.every((color) => color === variant.color)
-    && regions.every((region) => region === regionAlias(variant.region)));
-  // Product-level listings without variant evidence must not invent a SKU association.
-  return matches.length === 1
-    ? { variantId: matches[0].id }
-    : { variantId: null, rejectionReason: "ambiguous" };
+  const uniqueStorages = [...new Set(storages)];
+  const uniqueColors = [...new Set(colors)];
+  const uniqueRegions = [...new Set(regions)];
+  const uniqueConditions = [...new Set(conditions)];
+  if ([uniqueStorages, uniqueColors, uniqueRegions, uniqueConditions].some((values) => values.length > 1)) {
+    return { match: { status: "ambiguous", evidenceSource: "title_only", variantId: null }, rejectionReason: "ambiguous" };
+  }
+  const match = matchVariantEvidence(product.variants, {
+    source: "title_only",
+    attributes: {
+      ...(uniqueStorages[0] ? { storage: uniqueStorages[0] } : {}),
+      ...(uniqueColors[0] ? { color: uniqueColors[0] } : {}),
+      ...(uniqueRegions[0] ? { region: uniqueRegions[0] } : {}),
+      ...(uniqueConditions[0] ? { condition: uniqueConditions[0] as Product["variants"][number]["condition"] } : {}),
+    },
+  });
+  return {
+    match,
+    rejectionReason: match.status === "ambiguous" ? "ambiguous" : "insufficient_evidence",
+  };
 }
 
 function compareText(left: string, right: string): number {
@@ -186,17 +204,20 @@ export function selectLivePinduoduoOffersWithDiagnostics(products: readonly Prod
       if (relevance < 100) { diagnostics.unrelatedPairCount += 1; continue; }
       if (!prices) { diagnostics.invalidPriceCount += 1; continue; }
       if (!item.goodsId.trim() || !Number.isFinite(item.fetchedAt.getTime())) { diagnostics.invalidIdentityCount += 1; continue; }
-      const variantMatch = matchingVariant(product, item.goodsName);
-      const variantId = variantMatch.variantId;
-      if (variantMatch.rejectionReason === "storage") diagnostics.variantStorageMismatchCount += 1;
-      else if (variantMatch.rejectionReason === "color") diagnostics.variantColorMismatchCount += 1;
-      else if (variantMatch.rejectionReason === "region") diagnostics.variantRegionMismatchCount += 1;
-      else if (variantMatch.rejectionReason === "condition") diagnostics.variantConditionMismatchCount += 1;
-      else if (variantMatch.rejectionReason === "insufficient_evidence") diagnostics.variantInsufficientEvidenceCount += 1;
-      else if (variantMatch.rejectionReason === "ambiguous") diagnostics.variantAmbiguousMatchCount += 1;
+      const variantAnalysis = matchingVariant(product, item.goodsName);
+      const variantMatch = variantAnalysis.match;
+      const variantId = isComparableVariantMatch(variantMatch) ? variantMatch.variantId : null;
+      if (variantAnalysis.rejectionReason === "storage") diagnostics.variantStorageMismatchCount += 1;
+      else if (variantAnalysis.rejectionReason === "color") diagnostics.variantColorMismatchCount += 1;
+      else if (variantAnalysis.rejectionReason === "region") diagnostics.variantRegionMismatchCount += 1;
+      else if (variantAnalysis.rejectionReason === "condition") diagnostics.variantConditionMismatchCount += 1;
+      else if (variantAnalysis.rejectionReason === "insufficient_evidence") diagnostics.variantInsufficientEvidenceCount += 1;
+      else if (variantAnalysis.rejectionReason === "ambiguous") diagnostics.variantAmbiguousMatchCount += 1;
       diagnostics.eligibleCount += 1;
       offers.push({
         productId: product.id, variantId,
+        productMatch: { status: "matched", evidenceSource: "title_only", productId: product.id },
+        variantMatch,
         goodsId: item.goodsId, title: item.goodsName,
         image: selectLiveListingImage({
           platform: "pinduoduo",
@@ -223,7 +244,7 @@ export function selectLivePinduoduoOffersWithDiagnostics(products: readonly Prod
     }).slice(0, limit);
     diagnostics.deduplicatedCount += seen.size;
     diagnostics.selectedCount += selected.length;
-    diagnostics.matchedVariantCount += selected.filter((offer) => offer.variantId !== null).length;
+    diagnostics.matchedVariantCount += selected.filter((offer) => isComparableVariantMatch(offer.variantMatch)).length;
     if (selected.length) {
       diagnostics.matchedProductCount += 1;
       results.set(product.id, selected);

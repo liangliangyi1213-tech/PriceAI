@@ -31,6 +31,8 @@ function liveOffer(): LivePinduoduoOffer {
   return {
     productId: phones[0].id,
     variantId: null,
+    productMatch: { status: "matched", evidenceSource: "title_only", productId: phones[0].id },
+    variantMatch: { status: "insufficient_evidence", evidenceSource: "title_only", variantId: null },
     goodsId: "live-page-1",
     title: "页面实时商品",
     image: null,
@@ -143,6 +145,29 @@ describe("search page live Pinduoduo integration", () => {
     expect(html).toContain("小米");
     expect(mocks.getLivePinduoduoOffers).toHaveBeenCalledWith([xiaomi15], "小米15");
     expect(mocks.getLiveTaobaoOffers).toHaveBeenCalledWith([xiaomi15]);
+  });
+
+  it("resolves the English Xiaomi alias to the same Catalog product and phone context", async () => {
+    const xiaomi15 = phones.find((product) => product.slug === "xiaomi-15")!;
+    mocks.getProducts.mockResolvedValue([xiaomi15]);
+
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ q: "Xiaomi 15" }) }));
+
+    expect(html).toContain(xiaomi15.name);
+    expect(html).toContain("· 1 件商品");
+    expect(mocks.getLivePinduoduoOffers).toHaveBeenCalledWith([xiaomi15], "Xiaomi 15");
+    expect(mocks.getLiveTaobaoOffers).toHaveBeenCalledWith([xiaomi15]);
+  });
+
+  it("presents Xiaomi and REDMI as separate brand filters", async () => {
+    const xiaomi15 = phones.find((product) => product.slug === "xiaomi-15")!;
+    const redmiK80 = phones.find((product) => product.slug === "xiaomi-redmi-k80")!;
+    mocks.getProducts.mockResolvedValue([xiaomi15, redmiK80]);
+
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ category: "phones" }) }));
+
+    expect(html).toContain('type="checkbox" name="brand" value="小米"');
+    expect(html).toContain('type="checkbox" name="brand" value="REDMI"');
   });
 
   it("uses a generic category state for clothing without phone facets or phone live services", async () => {

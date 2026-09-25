@@ -37,6 +37,11 @@ export type PlatformSearchResult = {
   };
   productUrl: string;
   sourceMetadata?: Record<string, string | number | boolean | null>;
+  /** Provider-supplied structured attributes. Titles never qualify for this field. */
+  variantEvidence?: Readonly<{
+    source: "structured";
+    attributes: Readonly<Record<string, string>>;
+  }>;
 };
 
 export type PlatformProductDetail = PlatformSearchResult & {

@@ -20,6 +20,7 @@ import {
 } from "@/lib/search/category-context";
 import { getLivePinduoduoOffers } from "@/lib/search/pinduoduo-live-service";
 import { getLiveTaobaoOffers } from "@/lib/search/taobao-live-service";
+import { catalogProductBrandLabel } from "@/lib/search/catalog-query-match";
 import { parseProductSearchQuery, type ProductSearchQuery, type ProductSearchSort, type SearchParamRecord } from "@/lib/search/query";
 import { searchCatalog } from "@/lib/search/products";
 
@@ -80,7 +81,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
   const liveOffersByProduct = liveSources[0]?.status === "fulfilled" ? liveSources[0].value : undefined;
   const liveTaobaoOffersByProduct = liveSources[1]?.status === "fulfilled" ? liveSources[1].value : undefined;
   const rows = searchCatalog(scopedProducts, effectiveQuery, liveOffersByProduct, liveTaobaoOffersByProduct);
-  const brands = searchContext.facets.brands ? [...new Set(scopedProducts.map((product) => product.brand))] : [];
+  const brands = searchContext.facets.brands ? [...new Set(scopedProducts.map(catalogProductBrandLabel))] : [];
   const categoryOptions = searchContext.id === "all" ? availableCatalogCategories(products) : [searchContext];
   const productOptions = products.map((product) => ({ slug: product.slug, name: product.name }));
   const compareSlugs = parseCompareQuery(currentSearchParams.compare).filter((slug) => products.some((product) => product.slug === slug));
