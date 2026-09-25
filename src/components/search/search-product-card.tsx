@@ -6,12 +6,12 @@ import type { CatalogImageResolution } from "@/lib/catalog-images/types";
 import { formatPrice } from "@/lib/pricing/offers";
 import type { ProductSearchRow } from "@/lib/search/products";
 import type { Offer } from "@/types/catalog";
-import { catalogOfferSourceDisclosure, categoryLabel, productCardDetails, purchaseOpinion } from "./presentation";
+import { catalogOfferSourceDisclosure, catalogOfferSourceLabel, catalogScoreSourceDisclosure, categoryLabel, productCardDetails, purchaseOpinion } from "./presentation";
 import { specificationSummary } from "./specification-summary";
 
 function OfferRow({ offer, lowestId }: { offer: Offer; lowestId?: string }) {
   const isLowest = offer.id === lowestId;
-  return <li className={`flex min-w-0 items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm ${isLowest ? "bg-blue-50 text-blue-800" : "bg-slate-50 text-slate-600"}`}><span className="min-w-0 truncate">{offer.platform}</span><span className={`shrink-0 tabular-nums ${isLowest ? "font-bold text-blue-700" : "font-semibold text-slate-700"}`}>{formatPrice(offer.price)}</span>{isLowest ? <span className="sr-only">最低 Catalog 已收录报价</span> : null}</li>;
+  return <li className={`grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-0.5 rounded-lg px-2.5 py-2 text-sm ${isLowest ? "bg-blue-50 text-blue-800" : "bg-slate-50 text-slate-600"}`}><span className="min-w-0 truncate font-medium">{offer.platform}</span><span className={`shrink-0 tabular-nums ${isLowest ? "font-bold text-blue-700" : "font-semibold text-slate-700"}`}>{formatPrice(offer.price)}</span><span className="col-span-2 text-[10px] leading-4 text-slate-500">{catalogOfferSourceLabel(offer)}</span>{isLowest ? <span className="sr-only">最低 Catalog 已收录报价</span> : null}</li>;
 }
 
 const noImage: CatalogImageResolution = { kind: "none", source: "none", url: null, imageId: null, platform: null };
@@ -22,7 +22,8 @@ export function SearchProductCard({ row, image = noImage, children }: { row: Pro
   const href = `/products/${product.slug}`;
   const specification = specificationSummary(product.category, variant);
   const defaultVariant = product.variants[0];
-  const hasComparableLiveOffer = variant !== undefined && comparableLiveLowestPrice !== null;
+  const liveOfferLeads = variant !== undefined && comparableLiveLowestPrice !== null
+    && (lowestOffer === undefined || comparableLiveLowestPrice <= lowestOffer.price);
   const differentDetailVariant = variant && defaultVariant && variant.id !== defaultVariant.id;
   const defaultSpecification = specificationSummary(product.category, defaultVariant);
   const updatedAt = lowestOffer?.updatedAt;
@@ -45,10 +46,10 @@ export function SearchProductCard({ row, image = noImage, children }: { row: Pro
 
         <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.85fr)] sm:items-end">
           <div>
-            <p className="text-xs font-medium text-slate-500">{hasComparableLiveOffer ? "当前同规格可比最低价" : "最低 Catalog 已收录报价"}</p>
+            <p className="text-xs font-medium text-slate-500">{liveOfferLeads ? "同规格实时最低价（规格已确认）" : "最低 Catalog 已收录报价"}</p>
             <p className="mt-0.5 text-3xl font-bold tracking-tight text-slate-950">{displayLowestPrice !== null ? formatPrice(displayLowestPrice) : <span className="text-lg text-slate-600">暂无有效报价</span>}</p>
           </div>
-          <PriceAIScore score={row.valueScore} size="prominent" />
+          <div><PriceAIScore score={row.valueScore} size="prominent" /><p className="mt-1.5 text-[11px] leading-4 text-slate-500">{catalogScoreSourceDisclosure(offers)}</p></div>
         </div>
 
         <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">

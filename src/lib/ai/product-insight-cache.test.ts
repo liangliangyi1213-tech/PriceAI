@@ -71,6 +71,26 @@ describe("ProductInsight cache service", () => {
     await expect(getProductInsight(product, variant, { cache: insightCache, generate })).resolves.toEqual(cachedInsight);
   });
 
+  it("logs a final cache transport failure without leaking nested request details", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const writeError = Object.assign(new Error("Insight cache write failed."), {
+      name: "InsightCacheWriteError",
+      attempt: 3,
+      transportCode: "ECONNRESET",
+      cause: new Error("https://secret.example/path?token=private"),
+    });
+    const insightCache = cache({ upsert: () => Promise.reject(writeError) });
+    const generate = vi.fn(() => Promise.resolve(cachedInsight));
+
+    await expect(getProductInsight(product, variant, { cache: insightCache, generate })).resolves.toEqual(cachedInsight);
+
+    expect(log).toHaveBeenCalledWith(
+      `[PriceAI][InsightCache] write failed ${JSON.stringify({ operation: "write", attempt: 3, code: "ECONNRESET" })}`,
+    );
+    expect(JSON.stringify(log.mock.calls)).not.toContain("secret.example");
+    expect(generate).toHaveBeenCalledOnce();
+  });
+
   it("handles concurrent duplicate upserts without an unhandled exception", async () => {
     const insightCache = cache();
     const generate = vi.fn(() => Promise.resolve(cachedInsight));

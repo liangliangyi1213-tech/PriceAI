@@ -15,6 +15,29 @@ function formatPrice(price: number): string {
   return `¥${price.toLocaleString("zh-CN")}`;
 }
 
+const demonstrationSourcePattern = /(^|[-_])(mock|seed|demo)([-_]|$)/i;
+const publicPlatformLabels: Readonly<Record<string, string>> = {
+  jd: "京东",
+  jingdong: "京东",
+  pdd: "拼多多",
+  pinduoduo: "拼多多",
+  taobao: "淘宝",
+  tmall: "天猫",
+  京东: "京东",
+  拼多多: "拼多多",
+  淘宝: "淘宝",
+  天猫: "天猫",
+};
+
+function isDemonstrationSource(source: string): boolean {
+  return demonstrationSourcePattern.test(source.trim());
+}
+
+function displayPlatform(source: string): string {
+  if (isDemonstrationSource(source)) return "演示数据";
+  return publicPlatformLabels[source.trim().toLowerCase()] ?? "已收录来源";
+}
+
 export function getPriceHistoryJudgment(
   stats: Pick<PriceHistoryStats, "sampleCount" | "historicalLow" | "historicalHigh" | "currentPriceRangePositionPercent">,
 ): PriceHistoryJudgment {
@@ -49,9 +72,19 @@ export function buildPriceHistoryViewModel(history: PriceHistoryPoint[]): PriceH
   const lastIndex = validHistory.length - 1;
   const points: PriceHistoryChartPoint[] = validHistory.map((point, index) => ({
     ...point,
+    displayPlatform: displayPlatform(point.platform),
     isCurrent: index === lastIndex,
     isHistoricalLow: stats.historicalLow !== null && point.price === stats.historicalLow,
   }));
+  const isDemonstration = validHistory.some((point) => isDemonstrationSource(point.platform));
 
-  return { points, stats, judgment, summary: buildSummary(stats, judgment) };
+  return {
+    points,
+    stats,
+    judgment,
+    provenance: isDemonstration
+      ? { kind: "demonstration", disclosure: "演示历史数据，仅用于功能展示，不代表真实平台历史价格走势。" }
+      : { kind: "recorded", disclosure: null },
+    summary: buildSummary(stats, judgment),
+  };
 }

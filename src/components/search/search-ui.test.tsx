@@ -101,7 +101,7 @@ describe("product card presentation", () => {
     const row = searchCatalog([phones[0]], { sort: "relevance" }, new Map([[phones[0].id, [offer]]]))[0];
     const html = renderToStaticMarkup(<SearchProductCard row={row} />);
 
-    expect(html).toContain("当前同规格可比最低价");
+    expect(html).toContain("同规格实时最低价（规格已确认）");
     expect(html).toContain("¥6,999");
     expect(html).toContain("Catalog 已收录报价中，同规格最低报价比第二低报价低 ¥200");
     expect(html).not.toContain("参与评分的平台报价");
@@ -200,6 +200,8 @@ describe("product card presentation", () => {
     expect(html).toContain("查看历史价格");
     expect(html).toContain("最低 Catalog 已收录报价");
     expect(html).toContain("演示数据，非实时平台价格");
+    expect(html).toContain("评分包含演示 Catalog 报价，仅供参考，不代表实时购买结论。");
+    expect((html.match(/演示数据，非实时平台价格/g) ?? []).length).toBeGreaterThanOrEqual(3);
     expect(html).toContain('aria-label="iPhone 16 Pro 标准商品决策卡"');
     expect(html).not.toMatch(/历史最低价|折扣|已售|AI 推荐/);
   });

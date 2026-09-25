@@ -38,8 +38,14 @@ export type PriceSnapshotInput = {
 };
 
 export type PriceHistoryChartPoint = PriceHistoryPoint & {
+  displayPlatform: string;
   isCurrent: boolean;
   isHistoricalLow: boolean;
+};
+
+export type PriceHistoryProvenance = {
+  kind: "demonstration" | "recorded";
+  disclosure: string | null;
 };
 
 export type PriceHistoryJudgmentKind =
@@ -60,5 +66,6 @@ export type PriceHistoryViewModel = {
   points: PriceHistoryChartPoint[];
   stats: PriceHistoryStats;
   judgment: PriceHistoryJudgment;
+  provenance: PriceHistoryProvenance;
   summary: string;
 };

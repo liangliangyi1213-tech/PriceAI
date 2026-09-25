@@ -55,7 +55,7 @@ export function PriceHistoryChart({ points }: { points: PriceHistoryChartPoint[]
             return (
               <g key={point.id}>
                 <circle
-                  aria-label={`${formatFullDate(point.recordedAt)}，${point.platform}，${formatPrice(point.price)}`}
+                  aria-label={`${formatFullDate(point.recordedAt)}，${point.displayPlatform}，${formatPrice(point.price)}`}
                   cx={x}
                   cy={y}
                   fill={fill}
@@ -67,7 +67,7 @@ export function PriceHistoryChart({ points }: { points: PriceHistoryChartPoint[]
                   strokeWidth="2"
                   tabIndex={0}
                 >
-                  <title>{`${formatFullDate(point.recordedAt)} · ${point.platform} · ${formatPrice(point.price)}`}</title>
+                  <title>{`${formatFullDate(point.recordedAt)} · ${point.displayPlatform} · ${formatPrice(point.price)}`}</title>
                 </circle>
                 {labelIndexes.has(index) && <text fill="#64748b" fontSize="12" textAnchor="middle" x={x} y={chartHeight - 16}>{formatDate(point.recordedAt)}</text>}
               </g>
@@ -77,7 +77,7 @@ export function PriceHistoryChart({ points }: { points: PriceHistoryChartPoint[]
       </div>
       <div aria-live="polite" className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
         <span className="font-semibold text-slate-950">{formatFullDate(activePoint.recordedAt)}</span>
-        <span> · {activePoint.platform} · {formatPrice(activePoint.price)}</span>
+        <span> · {activePoint.displayPlatform} · {formatPrice(activePoint.price)}</span>
         {activePoint.originalPrice !== null && <span> · 原价 {formatPrice(activePoint.originalPrice)}</span>}
       </div>
       <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-600">

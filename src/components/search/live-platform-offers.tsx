@@ -57,7 +57,7 @@ export function LivePlatformOffers({
           <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700" data-platform-badge={listing.platformLabel}>
             <span aria-hidden="true" className="size-1.5 rounded-full bg-blue-500" />{listing.platformLabel}
           </span>
-          <span className="inline-flex w-fit rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600" data-quote-type={listing.dataTypeLabel}>{listing.dataTypeLabel}</span>
+          <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[11px] font-semibold ${listing.dataTypeLabel === "同规格实时报价" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-800"}`} data-quote-type={listing.dataTypeLabel}>{listing.dataTypeLabel}</span>
         </div>
 
         <SafeProductImage confirmedProductName={listing.confirmedProductName} image={listing.image} />

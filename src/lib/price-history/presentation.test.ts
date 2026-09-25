@@ -28,6 +28,21 @@ describe("price history presentation", () => {
     expect(view.points[1]).toMatchObject({ isHistoricalLow: true, isCurrent: false, platform: "mock-taobao" });
     expect(view.points[2]).toMatchObject({ isCurrent: true, isHistoricalLow: false });
     expect(view.stats).toMatchObject({ currentPrice: 90, historicalLow: 80, historicalHigh: 100, sampleCount: 3 });
+    expect(view.provenance).toEqual({
+      kind: "demonstration",
+      disclosure: "演示历史数据，仅用于功能展示，不代表真实平台历史价格走势。",
+    });
+    expect(view.points.map((item) => item.displayPlatform)).toEqual(["演示数据", "演示数据", "演示数据"]);
+  });
+
+  it("uses neutral public labels for recorded sources without exposing internal identifiers", () => {
+    const view = buildPriceHistoryViewModel([
+      point(100, "2026-08-01T00:00:00Z", "taobao"),
+      point(90, "2026-08-02T00:00:00Z", "internal-provider-42"),
+    ]);
+
+    expect(view.provenance).toEqual({ kind: "recorded", disclosure: null });
+    expect(view.points.map((item) => item.displayPlatform)).toEqual(["淘宝", "已收录来源"]);
   });
 
   it("labels a current historical-low price as near low", () => {

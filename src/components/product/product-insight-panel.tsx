@@ -25,7 +25,7 @@ function InsightGroup({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-export function ProductInsightPanel({ insight }: { insight: ProductInsight }) {
+export function ProductInsightPanel({ insight, usesDemonstrationData = false }: { insight: ProductInsight; usesDemonstrationData?: boolean }) {
   return (
     <section
       aria-labelledby="insight-heading"
@@ -36,8 +36,14 @@ export function ProductInsightPanel({ insight }: { insight: ProductInsight }) {
         AI 购买建议
       </h2>
 
+      {usesDemonstrationData ? (
+        <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold leading-6 text-amber-950">
+          以下建议基于演示数据生成，仅用于功能展示，不代表当前平台实时价格、销量、评分或在售状态。
+        </p>
+      ) : null}
+
       <div className="mt-5 rounded-2xl border border-violet-100 bg-white/90 p-5 sm:p-6">
-        <h3 className="text-sm font-semibold text-violet-700">一句话购买结论</h3>
+        <h3 className="text-sm font-semibold text-violet-700">{usesDemonstrationData ? "演示数据中的一句话购买结论" : "一句话购买结论"}</h3>
         <p className="mt-2 text-lg font-semibold leading-8 text-slate-950 sm:text-xl">
           {insight.verdict}
         </p>
@@ -51,7 +57,7 @@ export function ProductInsightPanel({ insight }: { insight: ProductInsight }) {
       </div>
 
       <div className="mt-5 rounded-xl border border-violet-100 bg-white/75 p-4 sm:p-5">
-        <h3 className="text-base font-semibold text-slate-950">购买建议</h3>
+        <h3 className="text-base font-semibold text-slate-950">{usesDemonstrationData ? "演示数据中的购买建议" : "购买建议"}</h3>
         <p className="mt-2 text-[15px] leading-7 text-slate-700">{insight.buyingAdvice}</p>
       </div>
     </section>

@@ -16,7 +16,11 @@ vi.mock("@/lib/ai/product-insight", () => ({ getProductInsight: mocks.getProduct
 vi.mock("@/lib/price-history/service", () => ({ getVariantPriceHistoryViewModel: mocks.getVariantPriceHistoryViewModel }));
 vi.mock("@/components/layout/site-header", () => ({ SiteHeader: () => <header /> }));
 vi.mock("@/components/layout/site-footer", () => ({ SiteFooter: () => <footer /> }));
-vi.mock("@/components/product/product-insight-panel", () => ({ ProductInsightPanel: () => null }));
+vi.mock("@/components/product/product-insight-panel", () => ({
+  ProductInsightPanel: ({ usesDemonstrationData }: { usesDemonstrationData?: boolean }) => (
+    <div>{usesDemonstrationData ? "demo-insight-boundary" : "recorded-insight-boundary"}</div>
+  ),
+}));
 vi.mock("@/components/price-history/price-history-panel", () => ({ PriceHistoryPanel: () => null }));
 vi.mock("@/components/compare/compare-selection", () => ({ CompareToggleButton: () => null }));
 
@@ -42,5 +46,6 @@ describe("product detail Catalog primary image", () => {
       legacyImage: product.image,
     });
     expect(html).toContain("https://img.alicdn.com/detail-xiaomi.jpg");
+    expect(html).toContain("demo-insight-boundary");
   });
 });

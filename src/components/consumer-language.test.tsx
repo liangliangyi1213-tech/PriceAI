@@ -18,6 +18,11 @@ describe("consumer-facing Chinese labels", () => {
     expect(html).toContain("销量");
     expect(html).toContain("可用报价数量");
     expect(html).toContain("PriceAI 评分");
+    expect(html).toContain("当前比较规格");
+    expect(html).toContain("价格数据类型");
+    expect(html).toContain("评分说明");
+    expect(html).toContain("演示数据，非实时平台价格");
+    expect(html).toContain("评分包含演示 Catalog 报价，仅供参考，不代表实时购买结论。");
     expect(html).toContain("¥7,599");
     expect(html).not.toMatch(/Rating|Sales|Offer|CPU/);
   });

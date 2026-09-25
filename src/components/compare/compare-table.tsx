@@ -12,8 +12,11 @@ type CompareRow = {
 const rows: CompareRow[] = [
   { label: "品牌", value: (product) => product.brand },
   { label: "商品名称", value: (product) => product.name },
+  { label: "当前比较规格", value: (product) => product.comparedSpecification },
   { label: "PriceAI 评分", value: (product) => product.valueScore, bestMetric: "valueScore", bestDirection: "highest" },
-  { label: "已收录最低价", value: (product) => product.lowestPrice === null ? null : formatPrice(product.lowestPrice), bestMetric: "lowestPrice", bestDirection: "lowest" },
+  { label: "评分说明", value: (product) => product.scoreSourceLabel },
+  { label: "已收录最低价（非实时）", value: (product) => product.lowestPrice === null ? null : formatPrice(product.lowestPrice), bestMetric: "lowestPrice", bestDirection: "lowest" },
+  { label: "价格数据类型", value: (product) => product.lowestPriceSourceLabel },
   { label: "最低价平台", value: (product) => product.lowestPricePlatform },
   { label: "处理器", value: (product) => product.chip },
   { label: "内存 / 存储", value: (product) => product.storage },

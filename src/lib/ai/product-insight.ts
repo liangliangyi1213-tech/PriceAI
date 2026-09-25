@@ -78,6 +78,21 @@ function logOpenAIFailure(stage: "configuration" | "request" | "parse", error: u
 }
 
 function logCacheFailure(operation: "read" | "write", error: unknown) {
+  if (operation === "write" && error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    if (record.name === "InsightCacheWriteError") {
+      const attempt = typeof record.attempt === "number" ? record.attempt : 1;
+      const allowedCodes = new Set(["ECONNRESET", "ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT"]);
+      const code = typeof record.transportCode === "string" && allowedCodes.has(record.transportCode)
+        ? record.transportCode
+        : "non_retryable";
+      console.error(
+        `[PriceAI][InsightCache] write failed ${JSON.stringify({ operation, attempt, code })}`,
+      );
+      return;
+    }
+  }
+
   const details = getSafeOpenAIErrorDetails(error);
 
   console.error(

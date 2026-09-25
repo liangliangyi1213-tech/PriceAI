@@ -11,6 +11,7 @@ import { getProductInsight } from "@/lib/ai/product-insight";
 import { getProductBySlug } from "@/lib/catalog/repository";
 import { resolveCatalogImageForProduct } from "@/lib/catalog-images/service";
 import { getVariantPriceHistoryViewModel } from "@/lib/price-history/service";
+import { hasDemonstrationCatalogOffers } from "@/lib/pricing/offer-provenance";
 import { scoreVariant } from "@/lib/scoring/value-score";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     <ProductDecisionHero compareAction={<CompareToggleButton productOptions={[{ slug: product.slug, name: product.name }]} productSlug={product.slug}/>} image={image} product={product} score={score.total} variant={variant}/>
     <PlatformOffers offers={variant.offers}/>
     <PriceHistoryPanel view={priceHistory}/>
-    <ProductInsightPanel insight={insight}/>
+    <ProductInsightPanel insight={insight} usesDemonstrationData={hasDemonstrationCatalogOffers(variant.offers)}/>
     <ProductSpecifications specs={product.specs}/>
   </main><SiteFooter/></>;
 }

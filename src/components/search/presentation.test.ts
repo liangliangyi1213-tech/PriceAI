@@ -41,6 +41,16 @@ describe("search presentation", () => {
     expect(presentation.catalogOfferSourceDisclosure(synchronizedOffers)).toBe("平台同步记录，非实时平台价格");
   });
 
+  it("labels every Catalog offer from its own source and explains demo-based scores", () => {
+    const [demo, synchronized] = phones[0].variants[0].offers;
+    const platformSync = { ...synchronized, source: "platform_sync", url: "#" };
+
+    expect(presentation.catalogOfferSourceLabel(demo)).toBe("演示数据，非实时平台价格");
+    expect(presentation.catalogOfferSourceLabel(platformSync)).toBe("平台同步记录，非实时平台价格");
+    expect(presentation.catalogOfferSourceDisclosure([demo, platformSync])).toBe("包含不同来源的 Catalog 记录，非实时平台价格");
+    expect(presentation.catalogScoreSourceDisclosure([demo, platformSync])).toBe("评分包含演示 Catalog 报价，仅供参考，不代表实时购买结论。");
+  });
+
   it("presents only validated live image, sales, and coupon facts", () => {
     expect(presentation.livePinduoduoOfferFacts(liveOffer())).toEqual({
       image: { platform: "pinduoduo", externalProductId: "live-1", url: "https://img.pddpic.com/live-phone.jpg", alt: "iPhone 16 Pro" },

@@ -1,6 +1,7 @@
 import { hasValidOfferPrice, getLowestOffer } from "@/lib/pricing/offers";
 import { scoreVariant } from "@/lib/scoring/value-score";
 import type { Offer, Product, ProductVariant } from "@/types/catalog";
+import { catalogOfferSourceLabel, catalogScoreSourceDisclosure } from "@/lib/pricing/offer-provenance";
 
 import { parseCompareQuery } from "./query";
 import type { CompareMetric, CompareMetricDirection, CompareProductViewModel } from "./types";
@@ -23,6 +24,14 @@ function finiteMetric(value: number): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
+function comparisonSpecification(variant: ProductVariant | undefined): string | null {
+  if (!variant) return null;
+  const values = [variant.storage, variant.color, variant.region, variant.condition]
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return values.length ? values.join(" · ") : null;
+}
+
 function toCompareView(product: Product): CompareProductViewModel {
   const lowestEntry = getLowestOfferEntry(product);
   const lowestOffer = lowestEntry?.offer;
@@ -36,8 +45,11 @@ function toCompareView(product: Product): CompareProductViewModel {
     valueScore: lowestEntry ? scoreVariant(lowestEntry.variant).total : null,
     lowestPrice: lowestOffer?.price ?? null,
     lowestPricePlatform: lowestOffer?.platform ?? null,
+    lowestPriceSourceLabel: lowestOffer ? catalogOfferSourceLabel(lowestOffer) : null,
+    scoreSourceLabel: catalogScoreSourceDisclosure(lowestEntry?.variant.offers ?? []),
+    comparedSpecification: comparisonSpecification(lowestEntry?.variant),
     chip: findSpecification(product, /芯片|CPU/i),
-    storage: product.variants[0]?.storage ?? null,
+    storage: lowestEntry?.variant.storage ?? null,
     screen: findSpecification(product, /屏幕/i),
     battery: findSpecification(product, /电池/i),
     camera: findSpecification(product, /摄|影像/i),

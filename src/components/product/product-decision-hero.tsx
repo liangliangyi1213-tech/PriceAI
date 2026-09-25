@@ -4,6 +4,7 @@ import { PriceAIScore } from "@/components/home/priceai-score";
 import { specificationSummary } from "@/components/search/specification-summary";
 import type { CatalogImageResolution } from "@/lib/catalog-images/types";
 import { formatPrice, getLowestOffer } from "@/lib/pricing/offers";
+import { catalogLowestOfferLabel, catalogOfferSourceLabel, catalogScoreSourceDisclosure } from "@/lib/pricing/offer-provenance";
 import type { Product, ProductVariant } from "@/types/catalog";
 import { getDetailPurchaseReference } from "./product-detail-presentation";
 
@@ -23,13 +24,14 @@ export function ProductDecisionHero({ product, variant, score, image = noImage, 
           <div className="mt-6">
             <p className="text-sm font-medium text-slate-600">当前已收录最低价</p>
             <p className="mt-1 text-4xl font-bold tracking-tight text-orange-700 sm:text-5xl">{lowestOffer ? formatPrice(lowestOffer.price) : "暂无有效报价"}</p>
+            {lowestOffer ? <p className="mt-2 text-xs leading-5 text-slate-500">{catalogOfferSourceLabel(lowestOffer)}</p> : null}
           </div>
           <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
             <p className="text-sm font-semibold text-blue-800">购买参考</p>
             <p className="mt-1 text-pretty text-sm leading-6 text-slate-700">{getDetailPurchaseReference(variant)}</p>
           </div>
-          <div className="mt-4"><PriceAIScore score={score} size="prominent" /></div>
-          {lowestOffer ? <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2 rounded-xl bg-slate-50 px-4 py-3"><span className="text-sm font-medium text-slate-600">最低价平台</span><span className="font-semibold text-slate-950">{lowestOffer.platform} · {formatPrice(lowestOffer.price)}</span></div> : null}
+          <div className="mt-4"><PriceAIScore score={score} size="prominent" /><p className="mt-2 text-xs leading-5 text-slate-500">{catalogScoreSourceDisclosure(variant.offers)}</p></div>
+          {lowestOffer ? <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2 rounded-xl bg-slate-50 px-4 py-3"><span className="text-sm font-medium text-slate-600">{catalogLowestOfferLabel(lowestOffer)}</span><span className="font-semibold text-slate-950">{lowestOffer.platform} · {formatPrice(lowestOffer.price)}</span></div> : null}
           <div className="mt-5 flex flex-wrap items-start gap-3 [&>div]:mt-0">
             <a className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700" href="#platform-offers">查看平台报价</a>
             {compareAction}

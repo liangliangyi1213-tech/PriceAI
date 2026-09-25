@@ -14,7 +14,8 @@ const variant = product.variants[0];
 describe("product detail decision center", () => {
   it("puts the current buying decision in the hero without inventing a purchase link", () => {
     const html = renderToStaticMarkup(<ProductDecisionHero product={product} score={scoreVariant(variant).total} variant={variant} />);
-    expect(html).toMatch(/Apple[\s\S]*iPhone 16 Pro[\s\S]*256GB[\s\S]*¥7,599[\s\S]*购买参考[\s\S]*第二低报价低 ¥200[\s\S]*PriceAI 评分：68[\s\S]*表现一般[\s\S]*最低价平台[\s\S]*拼多多/);
+    expect(html).toMatch(/Apple[\s\S]*iPhone 16 Pro[\s\S]*256GB[\s\S]*¥7,599[\s\S]*购买参考[\s\S]*第二低报价低 ¥200[\s\S]*PriceAI 评分：68[\s\S]*表现一般[\s\S]*演示数据中最低报价[\s\S]*拼多多/);
+    expect(html).toContain("评分包含演示 Catalog 报价，仅供参考，不代表实时购买结论。");
     expect(html).toContain('href="#platform-offers"');
     expect(html).not.toContain("立即购买");
   });
@@ -28,9 +29,10 @@ describe("product detail decision center", () => {
 
   it("shows only reliable offer links and keeps existing offer facts", () => {
     const html = renderToStaticMarkup(<PlatformOffers offers={variant.offers} />);
-    expect(html).toMatch(/平台报价[\s\S]*拼多多[\s\S]*当前最低[\s\S]*¥7,599/);
+    expect(html).toMatch(/Catalog 已收录报价[\s\S]*拼多多[\s\S]*已收录最低[\s\S]*¥7,599/);
     expect(html).toContain("平台评分 4.6");
     expect(html).toContain("销量 41,000");
+    expect((html.match(/演示数据，非实时平台价格/g) ?? []).length).toBe(3);
     expect(html).not.toContain("去购买");
     const linked = renderToStaticMarkup(<PlatformOffers offers={[{ ...variant.offers[0], url: "https://example.com/item" }]} />);
     expect(linked).toContain("去购买");
@@ -42,8 +44,11 @@ describe("product detail decision center", () => {
 
   it("uses existing AI fields and category-neutral product specs", () => {
     const insight = fallbackInsight(buildProductFacts(product, variant));
-    const ai = renderToStaticMarkup(<ProductInsightPanel insight={insight} />);
+    const ai = renderToStaticMarkup(<ProductInsightPanel insight={insight} usesDemonstrationData />);
     expect(ai).toMatch(/AI 购买建议[\s\S]*一句话购买结论[\s\S]*主要优点[\s\S]*需要注意[\s\S]*适合谁[\s\S]*不太适合谁[\s\S]*购买建议/);
+    expect(ai).toContain("以下建议基于演示数据生成，仅用于功能展示，不代表当前平台实时价格、销量、评分或在售状态。");
+    expect(ai).toContain("演示数据中的一句话购买结论");
+    expect(renderToStaticMarkup(<ProductInsightPanel insight={insight} />)).not.toContain("基于演示数据生成");
     const specs = renderToStaticMarkup(<ProductSpecifications specs={{ 材质: "纯棉", 尺码: "L" }} />);
     expect(specs).toMatch(/商品规格[\s\S]*材质[\s\S]*纯棉[\s\S]*尺码[\s\S]*L/);
     expect(renderToStaticMarkup(<ProductSpecifications specs={{}} />)).toContain("暂无商品规格数据");

@@ -39,6 +39,11 @@ export function PriceHistoryPanel({ view }: { view: PriceHistoryViewModel }) {
         </div>
       ) : (
         <>
+          {view.provenance.disclosure ? (
+            <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900">
+              {view.provenance.disclosure}
+            </p>
+          ) : null}
           <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3">
             <StatCard label="当前价格" value={formatPrice(stats.currentPrice)} />
             <StatCard label="历史最低价" value={formatPrice(stats.historicalLow)} />

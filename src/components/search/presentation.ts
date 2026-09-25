@@ -3,6 +3,11 @@ import type { LivePinduoduoOffer } from "@/lib/search/pinduoduo-live-offer";
 import type { ProductSearchQuery } from "@/lib/search/query";
 import type { ProductSearchRow } from "@/lib/search/products";
 import type { Offer } from "@/types/catalog";
+export {
+  catalogOfferSourceDisclosure,
+  catalogOfferSourceLabel,
+  catalogScoreSourceDisclosure,
+} from "@/lib/pricing/offer-provenance";
 
 /** URL presentation only; parsing, filtering and ranking remain in lib/search. */
 export function searchHref(query: ProductSearchQuery, compare: string[] = [], changes: Partial<ProductSearchQuery> = {}): string {
@@ -61,22 +66,6 @@ export function productCardDetails(row: ProductSearchRow) {
 }
 
 /** Describes provenance without treating a stored or synchronized row as a real-time platform quote. */
-export function catalogOfferSourceDisclosure(offers: readonly Offer[]): string {
-  if (offers.every((offer) => offer.source?.trim().toLowerCase() === "mock" || offer.url.trim() === "#")) {
-    return "演示数据，非实时平台价格";
-  }
-  const sources = new Set(offers.map((offer) => offer.source?.trim().toLowerCase() || "catalog"));
-  if (sources.size === 1 && sources.has("platform_sync")) {
-    return "平台同步记录，非实时平台价格";
-  }
-  if (sources.size === 1 && sources.has("verified_platform")) {
-    return "已核验平台记录，非实时平台价格";
-  }
-  return sources.size === 1
-    ? "Catalog 已收录记录，非实时平台价格"
-    : "包含不同来源的 Catalog 记录，非实时平台价格";
-}
-
 /** A deterministic quote observation, not an AI response or explanation of the overall score. */
 export function purchaseOpinion(row: ProductSearchRow): string {
   const { offers } = productCardDetails(row);

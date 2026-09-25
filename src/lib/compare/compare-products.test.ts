@@ -29,8 +29,21 @@ describe("buildCompareProducts", () => {
       storage: "256GB",
       lowestPrice: 7599,
       lowestPricePlatform: "拼多多",
+      comparedSpecification: "256GB · 黑色 · 国行 · 全新",
+      lowestPriceSourceLabel: "演示数据，非实时平台价格",
+      scoreSourceLabel: "评分包含演示 Catalog 报价，仅供参考，不代表实时购买结论。",
       offerCount: 6,
     });
+  });
+
+  it("keeps the displayed comparison specification aligned with the variant that supplies price and score", () => {
+    const product = structuredClone(phones[0]);
+    product.variants[1].offers[0].price = 100;
+    const [row] = buildCompareProducts([product], [product.slug]);
+
+    expect(row.lowestPrice).toBe(100);
+    expect(row.storage).toBe(product.variants[1].storage);
+    expect(row.comparedSpecification).toBe(`${product.variants[1].storage} · ${product.variants[1].color} · ${product.variants[1].region} · ${product.variants[1].condition}`);
   });
 
   it("supports four products in a comparison", () => {

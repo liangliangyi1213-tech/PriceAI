@@ -11,6 +11,9 @@ export type CompareProductViewModel = {
   valueScore: number | null;
   lowestPrice: number | null;
   lowestPricePlatform: Platform | null;
+  lowestPriceSourceLabel: string | null;
+  scoreSourceLabel: string;
+  comparedSpecification: string | null;
   chip: string | null;
   storage: string | null;
   screen: string | null;
