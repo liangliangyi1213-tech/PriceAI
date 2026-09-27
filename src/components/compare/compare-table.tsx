@@ -17,7 +17,7 @@ const rows: CompareRow[] = [
   { label: "评分说明", value: (product) => product.scoreSourceLabel },
   { label: "已收录最低价（非实时）", value: (product) => product.lowestPrice === null ? null : formatPrice(product.lowestPrice), bestMetric: "lowestPrice", bestDirection: "lowest" },
   { label: "价格数据类型", value: (product) => product.lowestPriceSourceLabel },
-  { label: "最低价平台", value: (product) => product.lowestPricePlatform },
+  { label: "已收录最低价的平台标识", value: (product) => product.lowestPricePlatform },
   { label: "处理器", value: (product) => product.chip },
   { label: "内存 / 存储", value: (product) => product.storage },
   { label: "屏幕", value: (product) => product.screen },

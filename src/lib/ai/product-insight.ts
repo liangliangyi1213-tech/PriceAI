@@ -1,6 +1,7 @@
 import type { Product, ProductVariant } from "@/types/catalog";
 import { getLowestOffer } from "@/lib/pricing/offers";
 import { scoreVariant } from "@/lib/scoring/value-score";
+import { canUseOfferFact, canUseOfferForAi, classifyOfferProvenance } from "@/lib/catalog/provenance";
 
 import { hashProductFacts } from "./facts-hash";
 import type {
@@ -17,6 +18,7 @@ Use only the supplied product facts.
 Never invent specifications, prices, ratings, sales, platform offers, scores, warranties, promotions, or other product facts.
 Do not change or recalculate the supplied value score.
 If information is missing, do not infer it as fact.
+Respect the supplied provenance: demonstration facts are for feature demonstration, and recorded or unknown facts must not be described as verified current market facts.
 最终输出必须使用简体中文。`;
 
 const schema = {
@@ -101,6 +103,22 @@ function logCacheFailure(operation: "read" | "write", error: unknown) {
 }
 
 export function buildProductFacts(product: Product, variant: ProductVariant): ProductFacts {
+  const provenances = variant.offers.map(classifyOfferProvenance);
+  const kinds = [...new Set(provenances.map((provenance) => provenance.kind))];
+  const statuses = new Set(provenances.map((provenance) => provenance.trust));
+  const provenanceStatus: ProductFacts["provenance"]["status"] = provenances.length === 0
+    ? "unknown"
+    : statuses.size > 1
+      ? "mixed"
+      : statuses.has("demonstration")
+        ? "demonstration"
+        : statuses.has("verified")
+          ? "verified"
+          : statuses.has("recorded")
+            ? "recorded"
+            : "unknown";
+  const aiOffers = variant.offers.filter(canUseOfferForAi);
+
   return {
     productName: product.name,
     brand: product.brand,
@@ -112,19 +130,27 @@ export function buildProductFacts(product: Product, variant: ProductVariant): Pr
       region: variant.region,
       condition: variant.condition,
     },
-    offers: variant.offers.map((offer) => ({
+    provenance: {
+      status: provenanceStatus,
+      demonstration: provenances.some((provenance) => provenance.demonstration),
+      offerKinds: kinds,
+    },
+    offers: aiOffers.map((offer) => ({
       platform: offer.platform,
       price: offer.price,
       rating: offer.rating,
       sales: offer.sales,
-      afterSales: offer.warranty,
+      afterSales: canUseOfferFact(offer, "warranty", "ai") ? offer.warranty : null,
+      provenance: classifyOfferProvenance(offer),
     })),
-    lowestPrice: getLowestOffer(variant.offers)?.price ?? null,
+    lowestPrice: getLowestOffer(aiOffers)?.price ?? null,
   };
 }
 
 export function fallbackInsight(facts: ProductFacts): ProductInsight {
-  const valueSummary = facts.valueScore >= 80 ? "综合性价比较高" : "建议结合预算谨慎比较";
+  const valueSummary = facts.valueScore === null
+    ? "当前事实不足以形成程序评分"
+    : facts.valueScore >= 80 ? "综合性价比较高" : "建议结合预算谨慎比较";
   const priceSummary = facts.lowestPrice === null ? "暂无可用最低价" : "已识别当前最低价";
 
   return {
@@ -133,7 +159,9 @@ export function fallbackInsight(facts: ProductFacts): ProductInsight {
     cons: ["分析仅基于当前已知商品信息"],
     suitableFor: ["希望比较现有平台报价的用户"],
     notSuitableFor: ["需要未提供参数或实时促销信息的用户"],
-    buyingAdvice: `请以 ${facts.valueScore}/100 的程序评分与当前平台报价为参考，确认规格后再购买。`,
+    buyingAdvice: facts.valueScore === null
+      ? "当前事实来源或完整度不足，请核对规格与平台信息后再购买。"
+      : `请以 ${facts.valueScore}/100 的程序评分与当前平台报价为参考，确认规格后再购买。`,
   };
 }
 

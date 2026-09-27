@@ -80,4 +80,26 @@ describe("home recommendation feed", () => {
       title: row.product.name,
     });
   });
+
+  it("describes recorded or demonstration discovery facts as collected rather than verified or real-time", () => {
+    const items = buildHomeDiscoveryItems(searchCatalog(phones, { sort: "score_desc" }));
+    const reasons = items.map((item) => item.reasonText).join(" ");
+
+    expect(reasons).not.toMatch(/已核验|正式报价|实时最低价/);
+    expect(reasons).toContain("已收录");
+  });
+
+  it("does not derive a discovery price spread from unknown provenance", () => {
+    const product = structuredClone(phones[0]);
+    product.variants[0].offers = product.variants[0].offers.map((offer, index) => ({
+      ...offer,
+      source: index === 0 ? "mock" : "unrecognized-source",
+      price: index === 0 ? 100 : 10_000 + index,
+    }));
+    const rows = searchCatalog([product, product], { sort: "score_desc" });
+    const items = buildHomeDiscoveryItems(rows);
+
+    expect(items.some((item) => item.reasonType === "多平台价差")).toBe(false);
+    expect(items.map((item) => item.reasonText).join(" ")).not.toContain("最高与最低相差");
+  });
 });

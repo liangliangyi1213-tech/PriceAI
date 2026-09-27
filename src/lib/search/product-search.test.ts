@@ -321,6 +321,19 @@ describe("searchCatalog", () => {
     expect(searchCatalog([highRating, highSales], { sort: "sales_desc" })[0].product.id).toBe("high-sales");
   });
 
+  it("fails closed for rating and sales sorting when provenance is unknown", () => {
+    const first = structuredClone(phones[0]);
+    const second = structuredClone(phones[1]);
+    first.id = "unknown-first";
+    second.id = "unknown-second";
+    first.variants = [{ ...first.variants[0], offers: [{ ...first.variants[0].offers[0], source: "unexpected", rating: 1, sales: 1 }] }];
+    second.variants = [{ ...second.variants[0], offers: [{ ...second.variants[0].offers[0], source: "unexpected", rating: 5, sales: 999_999 }] }];
+
+    expect(searchCatalog([first, second], { sort: "rating_desc" }).map((row) => row.product.id)).toEqual(["unknown-first", "unknown-second"]);
+    expect(searchCatalog([first, second], { sort: "sales_desc" }).map((row) => row.product.id)).toEqual(["unknown-first", "unknown-second"]);
+    expect(searchCatalog([first, second], { sort: "rating_desc" }).every((row) => row.rating === null)).toBe(true);
+  });
+
   it("keeps products without valid offers unpriced and last in offer-based sorting", () => {
     const rows = searchCatalog([productWithoutOffers(), phones[0]], { sort: "price_asc" });
 

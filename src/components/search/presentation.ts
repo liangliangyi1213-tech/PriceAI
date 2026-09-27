@@ -3,6 +3,7 @@ import type { LivePinduoduoOffer } from "@/lib/search/pinduoduo-live-offer";
 import type { ProductSearchQuery } from "@/lib/search/query";
 import type { ProductSearchRow } from "@/lib/search/products";
 import type { Offer } from "@/types/catalog";
+import { canUseOfferForCompare } from "@/lib/catalog/provenance";
 export {
   catalogOfferSourceDisclosure,
   catalogOfferSourceLabel,
@@ -69,14 +70,15 @@ export function productCardDetails(row: ProductSearchRow) {
 /** A deterministic quote observation, not an AI response or explanation of the overall score. */
 export function purchaseOpinion(row: ProductSearchRow): string {
   const { offers } = productCardDetails(row);
+  const comparableOffers = offers.filter(canUseOfferForCompare);
   const hasLivePinduoduoOffers = row.livePinduoduoOffers.length > 0;
-  if (!offers.length) return hasLivePinduoduoOffers
-    ? "暂无 Catalog 已收录报价；此参考不含实时拼多多报价。"
-    : "暂无有效报价，暂不作购买判断。";
-  if (offers.length === 1) return hasLivePinduoduoOffers
-    ? "Catalog 仅有 1 个同规格已收录报价；此参考不含实时拼多多报价，建议再作比较。"
-    : "Catalog 仅收录 1 个同规格报价，建议再作比较。";
-  const difference = Math.round((offers[1].price - offers[0].price) * 100) / 100;
+  if (!comparableOffers.length) return hasLivePinduoduoOffers
+    ? "当前没有足够的 Catalog 已收录可比报价；实时拼多多报价不参与此购买参考。"
+    : "当前没有足够的 Catalog 已收录可比报价，暂不作购买判断。";
+  if (comparableOffers.length === 1) return hasLivePinduoduoOffers
+    ? "当前仅有 1 个 Catalog 已收录可比报价；实时拼多多报价不参与此购买参考，无法计算与第二低价的差额。"
+    : "当前仅有 1 个 Catalog 已收录可比报价，无法计算与第二低价的差额。";
+  const difference = Math.round((comparableOffers[1].price - comparableOffers[0].price) * 100) / 100;
   if (difference === 0) return hasLivePinduoduoOffers
     ? "Catalog 已收录报价中，多个平台标识同为最低报价；此参考不含实时拼多多报价。"
     : "Catalog 中多个平台标识同为最低报价，建议核对服务与购买条件。";

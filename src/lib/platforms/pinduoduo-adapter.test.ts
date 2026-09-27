@@ -49,6 +49,7 @@ describe("PinduoduoAdapter", () => {
 
   it("maps a recommended good into the existing platform result shape", () => {
     expect(mapPinduoduoGoods(goods)).toEqual({
+      provenance: "live_platform",
       platform: "pdd",
       externalProductId: "123456789",
       externalVariantId: "test_goods_sign",

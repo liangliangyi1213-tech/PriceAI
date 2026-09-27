@@ -20,7 +20,7 @@ describe("TaobaoAdapter", () => {
     const mapped = mapTaobaoLiveOffer(liveOffer);
 
     expect(mapped).toMatchObject({
-      platform: "taobao", externalProductId: "123456", title: "Apple iPhone 16 Pro", price: 7999,
+      provenance: "live_platform", platform: "taobao", externalProductId: "123456", title: "Apple iPhone 16 Pro", price: 7999,
       originalPrice: 8999, shopName: "Apple 授权店", sales: 12500, productUrl: "https://s.click.taobao.com/test",
     });
     expect(mapped.externalVariantId).toBeUndefined();

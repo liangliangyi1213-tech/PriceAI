@@ -1,6 +1,7 @@
 import { formatPrice } from "@/lib/pricing/offers";
 import type { Offer } from "@/types/catalog";
 import { catalogOfferSourceLabel } from "@/lib/pricing/offer-provenance";
+import { canUseOfferForCompare } from "@/lib/catalog/provenance";
 import { getDetailOffers } from "./product-detail-presentation";
 
 function reliablePurchaseUrl(url: string): string | null {
@@ -14,7 +15,7 @@ function reliablePurchaseUrl(url: string): string | null {
 
 export function PlatformOffers({ offers }: { offers: Offer[] }) {
   const sorted = getDetailOffers(offers);
-  const lowestId = sorted[0]?.id;
+  const lowestId = sorted.find(canUseOfferForCompare)?.id;
   const hasPurchaseLink = sorted.some((offer) => reliablePurchaseUrl(offer.url));
   return (
     <section aria-labelledby="platform-offers-heading" className="mt-8 scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7" id="platform-offers">

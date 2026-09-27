@@ -7,6 +7,7 @@ import type { LivePinduoduoOffer } from "./pinduoduo-live-offer";
 import type { LiveTaobaoProductOffer } from "./taobao-live-offer";
 import { allowsPhoneCatalogMatch, matchesCatalogProductBrand, normalizeCatalogBrandAliases } from "./catalog-query-match";
 import { canParticipateInComparablePrice } from "@/lib/matching/evidence";
+import { canUseOfferFact } from "@/lib/catalog/provenance";
 
 export type ProductSearchRow = {
   product: Product;
@@ -67,7 +68,10 @@ function getProductMetrics(
   liveTaobaoOffers: readonly LiveTaobaoProductOffer[],
 ): ProductSearchRow {
   const variantOffers = product.variants
-    .map((variant) => ({ variant, offer: getLowestOffer(variant.offers) }))
+    .map((variant) => ({
+      variant,
+      offer: getLowestOffer(variant.offers.filter((offer) => canUseOfferFact(offer, "price", "sort"))),
+    }))
     .filter((entry): entry is { variant: ProductVariant; offer: Offer } => entry.offer !== undefined);
   const lowestEntry = variantOffers.reduce<{ variant: ProductVariant; offer: Offer } | undefined>(
     (lowest, entry) => !lowest || entry.offer.price < lowest.offer.price ? entry : lowest,
@@ -75,8 +79,8 @@ function getProductMetrics(
   );
   const lowestOffer = lowestEntry?.offer;
   const valueScore = lowestEntry ? scoreVariant(lowestEntry.variant).total : null;
-  const rating = lowestOffer && Number.isFinite(lowestOffer.rating) ? lowestOffer.rating : null;
-  const sales = lowestOffer && Number.isFinite(lowestOffer.sales) ? lowestOffer.sales : null;
+  const rating = lowestOffer && canUseOfferFact(lowestOffer, "rating", "sort") ? lowestOffer.rating : null;
+  const sales = lowestOffer && canUseOfferFact(lowestOffer, "sales", "sort") ? lowestOffer.sales : null;
   const platformCount = new Set(variantOffers.map((entry) => entry.offer.platform)).size;
   const comparableLiveOffers = lowestEntry
     ? livePinduoduoOffers.filter((offer) => canParticipateInComparablePrice(offer, lowestEntry.variant.id))

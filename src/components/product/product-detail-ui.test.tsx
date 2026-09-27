@@ -27,6 +27,28 @@ describe("product detail decision center", () => {
     expect(html).toContain("[overflow-wrap:anywhere]");
   });
 
+  it("does not present an unknown offer as the detail-page lowest comparable price", () => {
+    const withUnknown = {
+      ...variant,
+      offers: [
+        ...variant.offers,
+        {
+          ...variant.offers[0],
+          id: "unknown-cheapest",
+          platform: "来源待确认",
+          price: 1,
+          source: "unrecognized-source",
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(<ProductDecisionHero product={product} score={scoreVariant(withUnknown).total} variant={withUnknown} />);
+
+    expect(html).toContain("当前已收录最低价");
+    expect(html).toContain("¥7,599");
+    expect(html).not.toContain("¥1</p>");
+    expect(html).not.toContain("来源待确认 · ¥1");
+  });
+
   it("shows only reliable offer links and keeps existing offer facts", () => {
     const html = renderToStaticMarkup(<PlatformOffers offers={variant.offers} />);
     expect(html).toMatch(/Catalog 已收录报价[\s\S]*拼多多[\s\S]*已收录最低[\s\S]*¥7,599/);
@@ -40,6 +62,21 @@ describe("product detail decision center", () => {
     expect(linked).toContain('target="_blank"');
     expect(linked).toContain('rel="noopener noreferrer"');
     expect(renderToStaticMarkup(<PlatformOffers offers={[{ ...variant.offers[0], url: "https://" }]} />)).not.toContain("去购买");
+  });
+
+  it("does not mark an unknown offer as the lowest comparable Catalog quote", () => {
+    const unknown = {
+      ...variant.offers[0],
+      id: "unknown-cheapest",
+      platform: "来源待确认",
+      price: 1,
+      source: "unrecognized-source",
+    };
+    const html = renderToStaticMarkup(<PlatformOffers offers={[unknown, ...variant.offers]} />);
+
+    expect(html).toMatch(/来源待确认[\s\S]*来源未确认的 Catalog 记录/);
+    expect(html).not.toMatch(/来源待确认[\s\S]{0,300}已收录最低/);
+    expect(html).toMatch(/拼多多[\s\S]{0,300}已收录最低/);
   });
 
   it("uses existing AI fields and category-neutral product specs", () => {

@@ -99,7 +99,7 @@ export function normalizePlatformSearchResult(input: PlatformSearchResult, colle
   const sales = Number.isFinite(input.sales) && (input.sales ?? 0) >= 0 ? Math.floor(input.sales!) : null;
   const originalPrice = Number.isFinite(input.originalPrice) && (input.originalPrice ?? 0) >= input.price ? input.originalPrice! : null;
   const value: NormalizedPlatformProduct = {
-    platform: input.platform, externalProductId, externalVariantId: input.externalVariantId?.trim() || null, title,
+    provenance: input.provenance ?? "unknown", platform: input.platform, externalProductId, externalVariantId: input.externalVariantId?.trim() || null, title,
     normalizedTitle: compactText(title), brand, model, storage, color, price: input.price, originalPrice, currency: "CNY", shopName,
     rating, sales, imageUrl: optionalUrl(input.imageUrl), productUrl: optionalUrl(input.productUrl), collectedAt: new Date(collectedAt).toISOString(),
     titleVariantEvidence: {

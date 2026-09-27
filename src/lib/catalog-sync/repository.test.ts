@@ -13,7 +13,7 @@ const input: CatalogSyncWriteInput = {
   variant: { id: "variant-1", productId: "product-1", storage: "256GB", color: "黑色", region: "国行", condition: "全新", performance: 90, offers: [] },
   productMatch: { status: "matched", evidenceSource: "title_only", productId: "product-1" },
   variantMatch: { status: "matched", evidenceSource: "structured", variantId: "variant-1" },
-  normalized: { platform: "jd", externalProductId: "product-1", externalVariantId: "variant-1", title: "iPhone 16 Pro", normalizedTitle: "iphone16pro", brand: "Apple", model: "iPhone 16 Pro", storage: "256GB", color: "黑色", price: 7599, originalPrice: 7999, currency: "CNY", shopName: "商城", rating: 4.9, sales: 100, imageUrl: null, productUrl: "https://example.test/offer", collectedAt: "2026-09-01T10:00:00.000Z", titleVariantEvidence: { source: "title_only", attributes: { storage: "256GB", color: "黑色" } }, titleVariantConflict: false, structuredVariantEvidence: { source: "structured", attributes: { storage: "256GB", color: "黑色", region: "国行", condition: "全新" } } },
+  normalized: { platform: "jd", provenance: "mock", externalProductId: "product-1", externalVariantId: "variant-1", title: "iPhone 16 Pro", normalizedTitle: "iphone16pro", brand: "Apple", model: "iPhone 16 Pro", storage: "256GB", color: "黑色", price: 7599, originalPrice: 7999, currency: "CNY", shopName: "商城", rating: 4.9, sales: 100, imageUrl: null, productUrl: "https://example.test/offer", collectedAt: "2026-09-01T10:00:00.000Z", titleVariantEvidence: { source: "title_only", attributes: { storage: "256GB", color: "黑色" } }, titleVariantConflict: false, structuredVariantEvidence: { source: "structured", attributes: { storage: "256GB", color: "黑色", region: "国行", condition: "全新" } } },
 };
 
 describe("SupabaseCatalogSyncWriter", () => {
@@ -21,7 +21,7 @@ describe("SupabaseCatalogSyncWriter", () => {
     const upsert = vi.fn().mockResolvedValue({ error: null });
     mocks.getCatalogSyncWriteClient.mockReturnValue({ from: vi.fn(() => ({ upsert })) });
     await new SupabaseCatalogSyncWriter().upsertOffer(input);
-    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ offer_identity: "jd:variant-1", price: 7599, variant_id: "variant-1" }), { onConflict: "offer_identity" });
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ offer_identity: "jd:variant-1", price: 7599, variant_id: "variant-1", source: "mock" }), { onConflict: "offer_identity" });
   });
 
   it("does not add a same-price snapshot inside the one-hour window", async () => {
@@ -42,6 +42,6 @@ describe("SupabaseCatalogSyncWriter", () => {
     const limit = vi.fn(() => ({ maybeSingle })); const order = vi.fn(() => ({ limit })); const eqTwo = vi.fn(() => ({ order })); const eqOne = vi.fn(() => ({ eq: eqTwo }));
     mocks.getCatalogSyncWriteClient.mockReturnValue({ from: vi.fn(() => ({ select: vi.fn(() => ({ eq: eqOne })), insert })) });
     await expect(new SupabaseCatalogSyncWriter().recordPriceSnapshotIfNeeded(input)).resolves.toEqual({ recorded: true });
-    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ external_offer_id: "jd:variant-1", price: 7599 }));
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ external_offer_id: "jd:variant-1", platform: "mock", price: 7599 }));
   });
 });

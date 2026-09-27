@@ -3,7 +3,7 @@ import { phones } from "../data/phones";
 import { searchProducts } from "./search/products";
 import { getLowestOffer } from "./pricing/offers";
 import { scoreVariant } from "./scoring/value-score";
-import { sortProducts } from "./ranking/products";
+import { getRankingPriceOffer, sortProducts } from "./ranking/products";
 
 describe("catalog decision logic", () => {
   it("finds products by case-insensitive brand, name, and keyword", () => {
@@ -22,5 +22,16 @@ describe("catalog decision logic", () => {
   it("sorts product rows by selected criterion", () => {
     const rows = phones.map((product) => ({ product, score: scoreVariant(product.variants[0]).total }));
     expect(sortProducts(rows, "price")[0].product.slug).toBe("xiaomi-redmi-k80");
+  });
+  it("does not present an unknown offer as the ranking comparison price", () => {
+    const product = structuredClone(phones[0]);
+    product.variants[0].offers.push({
+      ...product.variants[0].offers[0],
+      id: "unknown-cheapest",
+      price: 1,
+      source: "unrecognized-source",
+    });
+
+    expect(getRankingPriceOffer(product)?.price).toBe(7599);
   });
 });

@@ -19,6 +19,7 @@ function sortResults(results: PlatformSearchResult[], sort: PlatformSearchSort |
 /** Maps Taobao's public Alliance fields to the platform boundary, never to a ProductVariant or Offer. */
 export function mapTaobaoLiveOffer(offer: LiveTaobaoOffer): PlatformSearchResult {
   return {
+    provenance: "live_platform",
     platform: "taobao",
     externalProductId: offer.itemId,
     title: offer.title,

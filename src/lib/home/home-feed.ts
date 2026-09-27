@@ -1,5 +1,6 @@
 import { searchCategoryIds, searchCategoryRegistry } from "@/lib/search/category-context";
 import { formatPrice } from "@/lib/pricing/offers";
+import { canUseOfferForCompare } from "@/lib/catalog/provenance";
 import type { ProductSearchRow } from "@/lib/search/products";
 
 export type HomeRecommendationSignals = {
@@ -79,7 +80,7 @@ export function buildHomeRecommendationFeed(
 
 function getComparablePlatformCount(row: ProductSearchRow): number {
   return row.product.variants.reduce((highest, variant) => {
-    const count = new Set(variant.offers.map((offer) => offer.platform)).size;
+    const count = new Set(variant.offers.filter(canUseOfferForCompare).map((offer) => offer.platform)).size;
     return Math.max(highest, count);
   }, 0);
 }
@@ -94,7 +95,7 @@ export function buildHomeDailyHighlights(
       ? `已收录 ${platformCount} 个平台报价，可核对同规格价格`
       : row.valueScore !== null
         ? `当前 PriceAI 性价比分 ${row.valueScore} 分`
-        : "当前已有可核验的商品与报价信息";
+        : "当前已有可查看的商品与报价信息";
 
     return { row, reason };
   });
@@ -118,11 +119,12 @@ function normalizeCatalogImage(image: string): string | null {
 export function buildHomeDiscoveryItems(rows: readonly ProductSearchRow[]): DiscoveryItem[] {
   return rows.slice(0, 4).map((row, index) => {
     const comparableVariant = row.product.variants.find((variant) => variant.id === row.lowestOffer?.variantId);
-    const validPrices = comparableVariant?.offers
+    const comparableOffers = comparableVariant?.offers.filter(canUseOfferForCompare) ?? [];
+    const validPrices = comparableOffers
       .map((offer) => offer.price)
       .filter((price) => Number.isFinite(price) && price >= 0) ?? [];
     const platformCount = comparableVariant
-      ? new Set(comparableVariant.offers.map((offer) => offer.platform)).size
+      ? new Set(comparableOffers.map((offer) => offer.platform)).size
       : 0;
     const priceSpread = validPrices.length > 1 ? Math.max(...validPrices) - Math.min(...validPrices) : 0;
     const hasScore = row.valueScore !== null;
@@ -139,10 +141,10 @@ export function buildHomeDiscoveryItems(rows: readonly ProductSearchRow[]): Disc
     const reason = useSpreadStory
       ? `同规格已收录 ${platformCount} 个平台报价，最高与最低相差 ${formatPrice(priceSpread)}`
       : usePriceStory
-        ? `当前最低正式报价 ${formatPrice(row.lowestOffer!.price)}，可继续查看报价明细`
+        ? `当前已收录最低报价 ${formatPrice(row.lowestOffer!.price)}，可继续查看报价明细`
         : useScoreStory
       ? `当前 PriceAI 性价比分 ${row.valueScore} 分，可继续查看评分依据`
-          : "已进入 PriceAI 商品目录，可继续查看已核验信息";
+          : "已进入 PriceAI 商品目录，可继续查看已收录信息";
 
     return {
       id: row.product.id,

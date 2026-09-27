@@ -89,4 +89,16 @@ describe("buildCompareProducts", () => {
     expect(getBestCompareValue(rows, "sales", "highest")).toBe(41000);
     expect(rows[2]).toMatchObject({ lowestPrice: null, valueScore: null, rating: null, sales: null });
   });
+
+  it("does not expose unknown rating, sales, or score as comparable facts", () => {
+    const product = structuredClone(phones[0]);
+    product.variants = product.variants.map((variant) => ({
+      ...variant,
+      offers: variant.offers.map((offer) => ({ ...offer, source: "unexpected" })),
+    }));
+
+    const [row] = buildCompareProducts([product], [product.slug]);
+
+    expect(row).toMatchObject({ lowestPrice: null, valueScore: null, rating: null, sales: null, offerCount: 0 });
+  });
 });

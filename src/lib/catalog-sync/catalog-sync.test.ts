@@ -31,7 +31,7 @@ describe("catalog sync normalization and matching", () => {
     const normalized = normalizePlatformSearchResult(valid, "2026-09-01T00:00:00.000Z");
     expect(normalized.ok).toBe(true);
     if (!normalized.ok) return;
-    expect(normalized.value).toMatchObject({ brand: "Apple", model: "iPhone 16 Pro", storage: "256GB", color: "黑色", shopName: "京东自营" });
+    expect(normalized.value).toMatchObject({ provenance: "unknown", brand: "Apple", model: "iPhone 16 Pro", storage: "256GB", color: "黑色", shopName: "京东自营" });
   });
 
   it("rejects invalid prices and safely removes invalid URLs", () => {
@@ -126,6 +126,7 @@ describe("catalog sync service", () => {
     expect(second.persisted).toBe(first.persisted);
     expect(writer.upsertOffer).toHaveBeenCalledTimes(first.persisted + second.persisted);
     expect(writer.recordPriceSnapshotIfNeeded).toHaveBeenCalled();
+    expect(vi.mocked(writer.upsertOffer).mock.calls[0][0].normalized.provenance).toBe("mock");
   });
 
   it("continues after a single writer failure", async () => {

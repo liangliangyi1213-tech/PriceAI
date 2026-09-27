@@ -15,7 +15,7 @@ export function HeroDiscovery({ highlights, imagesByProductId }: { highlights: H
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-slate-950" id="hero-discovery-heading">今日值得关注</p>
-          <p className="mt-1 text-xs text-slate-500">基于当前已核验决策信号</p>
+          <p className="mt-1 text-xs text-slate-500">基于当前已收录决策信息</p>
         </div>
         <Link className="text-xs font-semibold text-blue-700 hover:text-blue-800" href="/rankings">看榜单 →</Link>
       </div>

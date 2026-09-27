@@ -2,13 +2,14 @@ import { hasValidOfferPrice, getLowestOffer } from "@/lib/pricing/offers";
 import { scoreVariant } from "@/lib/scoring/value-score";
 import type { Offer, Product, ProductVariant } from "@/types/catalog";
 import { catalogOfferSourceLabel, catalogScoreSourceDisclosure } from "@/lib/pricing/offer-provenance";
+import { canUseOfferFact, canUseOfferForCompare } from "@/lib/catalog/provenance";
 
 import { parseCompareQuery } from "./query";
 import type { CompareMetric, CompareMetricDirection, CompareProductViewModel } from "./types";
 
 function getLowestOfferEntry(product: Product): { variant: ProductVariant; offer: Offer } | undefined {
   return product.variants
-    .map((variant) => ({ variant, offer: getLowestOffer(variant.offers) }))
+    .map((variant) => ({ variant, offer: getLowestOffer(variant.offers.filter(canUseOfferForCompare)) }))
     .filter((entry): entry is { variant: ProductVariant; offer: Offer } => entry.offer !== undefined)
     .reduce<{ variant: ProductVariant; offer: Offer } | undefined>(
       (lowest, entry) => !lowest || entry.offer.price < lowest.offer.price ? entry : lowest,
@@ -18,10 +19,6 @@ function getLowestOfferEntry(product: Product): { variant: ProductVariant; offer
 
 function findSpecification(product: Product, matcher: RegExp): string | null {
   return Object.entries(product.specs).find(([label]) => matcher.test(label))?.[1] ?? null;
-}
-
-function finiteMetric(value: number): number | null {
-  return Number.isFinite(value) ? value : null;
 }
 
 function comparisonSpecification(variant: ProductVariant | undefined): string | null {
@@ -35,7 +32,9 @@ function comparisonSpecification(variant: ProductVariant | undefined): string | 
 function toCompareView(product: Product): CompareProductViewModel {
   const lowestEntry = getLowestOfferEntry(product);
   const lowestOffer = lowestEntry?.offer;
-  const validOfferCount = product.variants.flatMap((variant) => variant.offers).filter(hasValidOfferPrice).length;
+  const validOfferCount = product.variants
+    .flatMap((variant) => variant.offers)
+    .filter((offer) => hasValidOfferPrice(offer) && canUseOfferForCompare(offer)).length;
 
   return {
     id: product.id,
@@ -53,8 +52,8 @@ function toCompareView(product: Product): CompareProductViewModel {
     screen: findSpecification(product, /屏幕/i),
     battery: findSpecification(product, /电池/i),
     camera: findSpecification(product, /摄|影像/i),
-    rating: lowestOffer ? finiteMetric(lowestOffer.rating) : null,
-    sales: lowestOffer ? finiteMetric(lowestOffer.sales) : null,
+    rating: lowestOffer && canUseOfferFact(lowestOffer, "rating", "compare") ? lowestOffer.rating : null,
+    sales: lowestOffer && canUseOfferFact(lowestOffer, "sales", "compare") ? lowestOffer.sales : null,
     offerCount: validOfferCount,
   };
 }

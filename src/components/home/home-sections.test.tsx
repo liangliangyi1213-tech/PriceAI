@@ -50,7 +50,8 @@ describe("home recommendation and discovery sections", () => {
     const html = renderToStaticMarkup(<HeroDiscovery highlights={highlights} imagesByProductId={new Map([[highlights[0].row.product.id, approvedCatalogImage]])} />);
 
     expect(html).toContain("今日值得关注");
-    expect(html).toContain("已核验决策信号");
+    expect(html).toContain("已收录决策信息");
+    expect(html).not.toContain("已核验决策信号");
     expect(html).toContain("个平台报价");
     expect(html).toContain("https://img.alicdn.com/catalog-primary.jpg");
   });
@@ -75,5 +76,6 @@ describe("home recommendation and discovery sections", () => {
     expect(html).toContain("左右滑动查看更多");
     expect(html).toContain('href="/rankings"');
     expect(html).not.toContain('href="/rankings/phones"');
+    expect(html).not.toMatch(/已核验|正式报价|实时最低价/);
   });
 });

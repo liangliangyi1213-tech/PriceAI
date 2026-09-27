@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { CatalogProductImage } from "@/components/catalog/catalog-product-image";
 import { PriceAIScore } from "@/components/home/priceai-score";
 import { specificationSummary } from "@/components/search/specification-summary";
+import { canUseOfferForCompare } from "@/lib/catalog/provenance";
 import type { CatalogImageResolution } from "@/lib/catalog-images/types";
 import { formatPrice, getLowestOffer } from "@/lib/pricing/offers";
 import { catalogLowestOfferLabel, catalogOfferSourceLabel, catalogScoreSourceDisclosure } from "@/lib/pricing/offer-provenance";
@@ -10,8 +11,8 @@ import { getDetailPurchaseReference } from "./product-detail-presentation";
 
 const noImage: CatalogImageResolution = { kind: "none", source: "none", url: null, imageId: null, platform: null };
 
-export function ProductDecisionHero({ product, variant, score, image = noImage, compareAction }: { product: Product; variant: ProductVariant; score: number; image?: CatalogImageResolution; compareAction?: ReactNode }) {
-  const lowestOffer = getLowestOffer(variant.offers);
+export function ProductDecisionHero({ product, variant, score, image = noImage, compareAction }: { product: Product; variant: ProductVariant; score: number | null; image?: CatalogImageResolution; compareAction?: ReactNode }) {
+  const lowestOffer = getLowestOffer(variant.offers.filter(canUseOfferForCompare));
   const specification = specificationSummary(product.category, variant);
   return (
     <section aria-labelledby="product-heading" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm lg:overflow-visible lg:border-0 lg:bg-transparent lg:shadow-none">

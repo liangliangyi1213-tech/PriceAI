@@ -1,8 +1,9 @@
-import type { MarketplaceId, PlatformAdapterId, PlatformSearchResult } from "@/lib/platforms/types";
+import type { MarketplaceId, PlatformAdapterId, PlatformResultProvenance, PlatformSearchResult } from "@/lib/platforms/types";
 import type { Product, ProductVariant } from "@/types/catalog";
 import type { ProductMatchResult, VariantEvidence, VariantMatchResult } from "@/lib/matching/evidence";
 
 export type NormalizedPlatformProduct = {
+  provenance: PlatformResultProvenance;
   platform: MarketplaceId;
   externalProductId: string;
   externalVariantId: string | null;

@@ -20,6 +20,7 @@ function parseSalesTip(value: string | null): number | undefined {
 
 export function mapPinduoduoGoods(goods: PinduoduoRecommendedGoods): PlatformSearchResult {
   return {
+    provenance: "live_platform",
     platform: "pdd",
     externalProductId: goods.goodsId,
     externalVariantId: goods.goodsSign ?? undefined,

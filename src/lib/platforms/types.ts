@@ -6,6 +6,7 @@ export type MarketplaceId = Exclude<PlatformAdapterId, "mock">;
 
 export type PlatformSearchSort = "relevance" | "price_asc" | "price_desc";
 export type CatalogSyncCapability = "full_offer" | "product_only";
+export type PlatformResultProvenance = "mock" | "live_platform" | "unknown";
 
 export type PlatformSearchOptions = {
   limit?: number;
@@ -22,6 +23,8 @@ export type PlatformSearchOptions = {
  * It intentionally is not PriceAI's Product / ProductVariant / Offer model.
  */
 export type PlatformSearchResult = {
+  /** Explicit adapter capability identity; never inferred from marketplace. */
+  provenance?: PlatformResultProvenance;
   platform: MarketplaceId;
   externalProductId: string;
   externalVariantId?: string;

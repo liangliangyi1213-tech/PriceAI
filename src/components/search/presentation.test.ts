@@ -51,6 +51,20 @@ describe("search presentation", () => {
     expect(presentation.catalogOfferSourceLabel(platformSync)).toBe("平台同步记录，非实时平台价格");
     expect(presentation.catalogOfferSourceDisclosure([demo, platformSync])).toBe("包含不同来源的 Catalog 记录，非实时平台价格");
     expect(presentation.catalogScoreSourceDisclosure([demo, platformSync])).toBe("评分包含演示 Catalog 报价，仅供参考，不代表实时购买结论。");
+    expect(presentation.catalogScoreSourceDisclosure([platformSync])).toBe("报价来源或事实完整度不足，暂不形成 PriceAI 评分。");
+  });
+
+  it("labels the deterministic legacy SQL seed identity as demonstration data", () => {
+    const offer = {
+      ...phones[0].variants[0].offers[0],
+      id: `${phones[0].variants[0].id}-jd`,
+      seller: "品牌旗舰店",
+      title: "官方正品",
+      source: "catalog",
+      url: "#",
+    };
+
+    expect(presentation.catalogOfferSourceLabel(offer)).toBe("演示数据，非实时平台价格");
   });
 
   it("presents only validated live image, sales, and coupon facts", () => {
@@ -88,10 +102,44 @@ describe("search presentation", () => {
     const product = structuredClone(phones[0]);
     product.variants = [{ ...product.variants[0], offers: [product.variants[0].offers[0]] }];
     expect(presentation.purchaseOpinion(searchCatalog([product], { sort: "relevance" })[0]))
-      .toBe("Catalog 仅收录 1 个同规格报价，建议再作比较。");
+      .toBe("当前仅有 1 个 Catalog 已收录可比报价，无法计算与第二低价的差额。");
     product.variants = [];
     expect(presentation.purchaseOpinion(searchCatalog([product], { sort: "relevance" })[0]))
-      .toBe("暂无有效报价，暂不作购买判断。");
+      .toBe("当前没有足够的 Catalog 已收录可比报价，暂不作购买判断。");
+  });
+  it("keeps an unknown offer visible but excludes it from search-card purchase comparison", () => {
+    const product = structuredClone(phones[0]);
+    product.variants[0].offers.push({
+      ...product.variants[0].offers[0],
+      id: "unknown-cheapest",
+      platform: "来源待确认",
+      price: 1,
+      source: "unrecognized-source",
+    });
+    const row = searchCatalog([product], { sort: "relevance" })[0];
+
+    expect(presentation.productCardDetails(row).offers.map((offer) => offer.id)).toContain("unknown-cheapest");
+    expect(row.lowestOffer?.id).not.toBe("unknown-cheapest");
+    expect(presentation.purchaseOpinion(row)).toBe("Catalog 同规格最低报价比第二低报价低 ¥200，可以优先比较。");
+  });
+
+  it("does not compare an unknown offer when it leaves only one comparable Catalog quote", () => {
+    const product = structuredClone(phones[0]);
+    product.variants[0].offers = [
+      product.variants[0].offers[0],
+      { ...product.variants[0].offers[1], source: "unrecognized-source", price: 1 },
+    ];
+
+    expect(presentation.purchaseOpinion(searchCatalog([product], { sort: "relevance" })[0]))
+      .toBe("当前仅有 1 个 Catalog 已收录可比报价，无法计算与第二低价的差额。");
+  });
+
+  it("uses real-time wording only for explicit live provenance", () => {
+    const source = phones[0].variants[0].offers[0];
+    expect(presentation.catalogOfferSourceLabel({ ...source, source: "verified_platform", url: "https://example.test/item" }))
+      .toBe("已核验平台记录，非实时平台价格");
+    expect(presentation.catalogOfferSourceLabel({ ...source, source: "live_platform", url: "https://example.test/item" }))
+      .toBe("平台实时价格");
   });
   it("keeps query, filters and compare selections when sorting", () => {
     expect(presentation.searchHref({ query: "茶 & 杯", category: "clothing", brands: ["A", "B"], minPrice: 0, maxPrice: 500, minScore: 70, sort: "relevance" }, ["a", "b"], { sort: "price_asc" }))

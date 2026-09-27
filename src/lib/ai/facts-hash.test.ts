@@ -27,6 +27,19 @@ describe("ProductFacts hash", () => {
   });
 
   it("changes when the programmatic value score changes", () => {
-    expect(hashProductFacts({ ...facts, valueScore: facts.valueScore + 1 })).not.toBe(hashProductFacts(facts));
+    expect(hashProductFacts({ ...facts, valueScore: (facts.valueScore ?? 0) + 1 })).not.toBe(hashProductFacts(facts));
+  });
+
+  it("changes when the facts provenance changes without changing the numeric facts", () => {
+    const verifiedProduct = structuredClone(phones[0]);
+    verifiedProduct.variants[0].offers = verifiedProduct.variants[0].offers.map((offer) => ({
+      ...offer,
+      source: "verified_platform",
+    }));
+    const verifiedFacts = buildProductFacts(verifiedProduct, verifiedProduct.variants[0]);
+
+    expect(verifiedFacts.lowestPrice).toBe(facts.lowestPrice);
+    expect(verifiedFacts.valueScore).toBe(facts.valueScore);
+    expect(hashProductFacts(verifiedFacts)).not.toBe(hashProductFacts(facts));
   });
 });

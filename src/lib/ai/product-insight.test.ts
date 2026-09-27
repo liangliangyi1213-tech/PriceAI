@@ -11,6 +11,20 @@ describe("AI product facts", () => {
     expect(facts.lowestPrice).toBe(7599);
     expect(facts.valueScore).toBeGreaterThan(0);
     expect(facts.offers.map((offer) => offer.platform)).toEqual(["京东", "淘宝", "拼多多"]);
+    expect(facts.provenance).toMatchObject({ status: "demonstration", demonstration: true });
+    expect(facts.offers.every((offer) => offer.provenance.demonstration)).toBe(true);
+  });
+
+  it("excludes unknown offer facts from the AI fact payload", () => {
+    const product = structuredClone(phones[0]);
+    product.variants[0].offers = product.variants[0].offers.map((offer) => ({ ...offer, source: "unexpected" }));
+
+    const unknownFacts = buildProductFacts(product, product.variants[0]);
+
+    expect(unknownFacts.offers).toEqual([]);
+    expect(unknownFacts.lowestPrice).toBeNull();
+    expect(unknownFacts.valueScore).toBeNull();
+    expect(unknownFacts.provenance).toMatchObject({ status: "unknown", demonstration: false });
   });
 
   it("creates a deterministic fallback without invented product facts", () => {
