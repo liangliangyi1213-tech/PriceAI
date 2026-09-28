@@ -7,6 +7,40 @@ export type MarketplaceId = Exclude<PlatformAdapterId, "mock">;
 export type PlatformSearchSort = "relevance" | "price_asc" | "price_desc";
 export type CatalogSyncCapability = "full_offer" | "product_only";
 export type PlatformResultProvenance = "mock" | "live_platform" | "unknown";
+export type PlatformIndicatorUsage =
+  | "display"
+  | "sort"
+  | "filter"
+  | "compare"
+  | "score"
+  | "ai"
+  | "persist_as_sales";
+
+/** Provider-specific context that must never be treated as ordinary consumer sales. */
+export type PlatformIndicator =
+  | Readonly<{
+      kind: "pdd_sales_tip";
+      displayText: string;
+      usage: "display_only";
+    }>
+  | Readonly<{
+      kind: "pdd_realtime_sales_tip";
+      displayText: string;
+      usage: "display_only";
+    }>
+  | Readonly<{
+      kind: "taobao_annual_volume";
+      displayText: string;
+      numericValue?: number;
+      period: "annual";
+      usage: "display_only";
+    }>
+  | Readonly<{
+      kind: "taobao_affiliate_promotion_30d";
+      value: number;
+      period: "last_30_days";
+      usage: "display_only";
+    }>;
 
 export type PlatformSearchOptions = {
   limit?: number;
@@ -33,8 +67,10 @@ export type PlatformSearchResult = {
   originalPrice?: number;
   imageUrl?: string;
   shopName: string;
+  /** Reserved for a future verified ordinary consumer-sales fact. */
   sales?: number;
   rating?: number;
+  providerIndicators?: readonly PlatformIndicator[];
   promotion?: {
     originalPrice: number;
   };

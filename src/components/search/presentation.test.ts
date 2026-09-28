@@ -19,9 +19,10 @@ function liveOffer(overrides: Partial<LivePinduoduoOffer> = {}): LivePinduoduoOf
     couponAmount: 200,
     couponMinOrderAmount: 1_000,
     extraCouponAmount: 50,
-    salesTip: "已拼1.2万+",
-    realtimeSalesTip: "近2小时已拼100+件",
-    sales: 12_000,
+    providerIndicators: [
+      { kind: "pdd_realtime_sales_tip", displayText: "近2小时已拼100+件", usage: "display_only" },
+      { kind: "pdd_sales_tip", displayText: "已拼1.2万+", usage: "display_only" },
+    ],
     price: 6_999,
     source: "live",
     fetchedAt: "2026-09-05T00:00:00.000Z",
@@ -67,10 +68,10 @@ describe("search presentation", () => {
     expect(presentation.catalogOfferSourceLabel(offer)).toBe("演示数据，非实时平台价格");
   });
 
-  it("presents only validated live image, sales, and coupon facts", () => {
+  it("presents only validated live image, provider indicators, and coupon facts", () => {
     expect(presentation.livePinduoduoOfferFacts(liveOffer())).toEqual({
       image: { platform: "pinduoduo", externalProductId: "live-1", url: "https://img.pddpic.com/live-phone.jpg", alt: "iPhone 16 Pro" },
-      salesLabel: "近2小时已拼100+件",
+      indicatorLabels: ["平台实时提示：近2小时已拼100+件", "平台提示：已拼1.2万+"],
       couponLabels: ["有券", "券额 ¥200", "使用门槛 ¥1,000", "额外优惠 ¥50"],
     });
   });
@@ -82,10 +83,8 @@ describe("search presentation", () => {
       couponAmount: undefined,
       couponMinOrderAmount: undefined,
       extraCouponAmount: undefined,
-      salesTip: null,
-      realtimeSalesTip: null,
-      sales: null,
-    }))).toEqual({ image: null, salesLabel: null, couponLabels: [] });
+      providerIndicators: [],
+    }))).toEqual({ image: null, indicatorLabels: [], couponLabels: [] });
   });
 
   it("bases the opinion on the next-lowest same-variant platform, not the highest", () => {

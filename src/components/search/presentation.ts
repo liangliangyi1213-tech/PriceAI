@@ -4,6 +4,7 @@ import type { ProductSearchQuery } from "@/lib/search/query";
 import type { ProductSearchRow } from "@/lib/search/products";
 import type { Offer } from "@/types/catalog";
 import { canUseOfferForCompare } from "@/lib/catalog/provenance";
+import { platformIndicatorDisplayLabel } from "@/lib/platforms/indicator-policy";
 export {
   catalogOfferSourceDisclosure,
   catalogOfferSourceLabel,
@@ -30,11 +31,6 @@ export function categoryLabel(category: string): string {
   return labels[category] ?? category;
 }
 
-function suppliedText(value: string | null): string | null {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
-}
-
 function isCouponAmount(value: number | undefined): value is number {
   return value !== undefined && Number.isFinite(value) && value >= 0;
 }
@@ -42,14 +38,15 @@ function isCouponAmount(value: number | undefined): value is number {
 /** Whitelists the optional facts that may be rendered for a public live listing. */
 export function livePinduoduoOfferFacts(offer: LivePinduoduoOffer) {
   const image = offer.image;
-  const salesLabel = suppliedText(offer.realtimeSalesTip) ?? suppliedText(offer.salesTip)
-    ?? (offer.sales !== null && Number.isFinite(offer.sales) && offer.sales >= 0 ? `销量 ${offer.sales.toLocaleString("zh-CN")}` : null);
+  const indicatorLabels = offer.providerIndicators
+    .map(platformIndicatorDisplayLabel)
+    .filter((label): label is string => label !== null);
   const couponLabels: string[] = [];
   if (offer.hasCoupon) couponLabels.push("有券");
   if (isCouponAmount(offer.couponAmount)) couponLabels.push(`券额 ${formatPrice(offer.couponAmount)}`);
   if (isCouponAmount(offer.couponMinOrderAmount)) couponLabels.push(`使用门槛 ${formatPrice(offer.couponMinOrderAmount)}`);
   if (isCouponAmount(offer.extraCouponAmount)) couponLabels.push(`额外优惠 ${formatPrice(offer.extraCouponAmount)}`);
-  return { image, salesLabel, couponLabels };
+  return { image, indicatorLabels, couponLabels };
 }
 
 /** Compare like-for-like offers for the variant used by the existing search score. */

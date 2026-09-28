@@ -18,7 +18,7 @@ export type LivePlatformListing = {
   secondaryPriceLabel?: string;
   conditionNote?: string;
   tags?: readonly string[];
-  metadata?: string | null;
+  metadataItems?: readonly string[];
   href?: string | null;
   actionLabel?: string;
   platformLabel: string;
@@ -69,11 +69,19 @@ export function LivePlatformOffers({
 
           <div aria-label={`${listing.primaryPriceLabel ?? "当前价格"} ${formatPrice(listing.primaryPrice)}`} className="mt-3 min-w-0">
             <p className="text-[11px] font-medium text-slate-500">{listing.primaryPriceLabel ?? "当前价格"}</p>
-            <div className="mt-0.5 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span className="shrink-0 text-xl font-bold tabular-nums tracking-tight text-blue-700">{formatPrice(listing.primaryPrice)}</span>
-              {listing.metadata ? <span className="min-w-0 truncate text-xs text-slate-500">{listing.metadata}</span> : null}
-            </div>
+            <span className="mt-0.5 block text-xl font-bold tabular-nums tracking-tight text-blue-700">{formatPrice(listing.primaryPrice)}</span>
           </div>
+
+          {listing.metadataItems?.length ? (
+            <ul className="mt-2 space-y-1" data-provider-indicators="true">
+              {listing.metadataItems.map((item) => (
+                <li className="flex min-w-0 items-start gap-1.5 rounded-md bg-slate-50 px-2 py-1.5 text-xs leading-4 text-slate-600" data-provider-indicator="true" key={item}>
+                  <span aria-hidden="true" className="mt-1.5 size-1 shrink-0 rounded-full bg-slate-400" />
+                  <span className="min-w-0 break-words [overflow-wrap:anywhere]">{item}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
 
           {listing.secondaryPrice !== undefined ? (
             <div className="mt-2 rounded-lg border border-orange-100 bg-orange-50/75 px-2.5 py-2 text-xs leading-5 text-orange-900">

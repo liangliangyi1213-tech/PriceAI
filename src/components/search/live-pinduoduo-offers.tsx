@@ -19,7 +19,7 @@ export function LivePinduoduoOffers({ offers, product }: { offers: readonly Live
       merchant: offer.merchant.trim() || null,
       primaryPrice: offer.price,
       primaryPriceLabel: comparable ? "同规格实时价格" : "商品级参考价",
-      metadata: facts.salesLabel,
+      metadataItems: facts.indicatorLabels,
       tags: facts.couponLabels,
       platformLabel: "拼多多",
       confirmedProductName: product.name,

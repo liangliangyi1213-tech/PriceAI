@@ -11,6 +11,7 @@ const liveOffer: LiveTaobaoOffer = {
   categoryId: "1512", categoryName: "手机", shopTitle: "Apple 授权店", sellerId: "seller-1",
   pictUrl: "https://img.example.test/iphone.jpg", smallImages: [], reservePrice: 8999, salePrice: 7999,
   promotionPrice: 7499, promotionTagList: ["地区补贴"], govSubsidy: { tagName: "国家补贴", stateSubsidyInfo: null }, annualVol: 12000, totalSales: 12500,
+  annualVolDisplayText: "1.2万+",
   clickUrl: "https://s.click.taobao.com/test",
   variantId: null,
 };
@@ -21,8 +22,13 @@ describe("TaobaoAdapter", () => {
 
     expect(mapped).toMatchObject({
       provenance: "live_platform", platform: "taobao", externalProductId: "123456", title: "Apple iPhone 16 Pro", price: 7999,
-      originalPrice: 8999, shopName: "Apple 授权店", sales: 12500, productUrl: "https://s.click.taobao.com/test",
+      originalPrice: 8999, shopName: "Apple 授权店", productUrl: "https://s.click.taobao.com/test",
+      providerIndicators: [
+        { kind: "taobao_annual_volume", displayText: "1.2万+", period: "annual", usage: "display_only" },
+        { kind: "taobao_affiliate_promotion_30d", value: 12500, period: "last_30_days", usage: "display_only" },
+      ],
     });
+    expect(mapped).not.toHaveProperty("sales");
     expect(mapped.externalVariantId).toBeUndefined();
     expect(mapped.sourceMetadata).toMatchObject({ reservePrice: 8999, salePrice: 7999, promotionPrice: 7499, govSubsidyTag: "国家补贴" });
   });

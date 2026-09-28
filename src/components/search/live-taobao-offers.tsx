@@ -1,9 +1,13 @@
 import type { LiveTaobaoProductOffer } from "@/lib/search/taobao-live-offer";
 import { prepareLiveTaobaoOffers } from "@/lib/search/taobao-live-presentation";
+import { platformIndicatorDisplayLabel } from "@/lib/platforms/indicator-policy";
 
 import { LivePlatformOffers, type LivePlatformListing } from "./live-platform-offers";
 
 function listing(offer: LiveTaobaoProductOffer, confirmedProductName: string): LivePlatformListing {
+  const indicatorLabels = offer.providerIndicators
+    .map(platformIndicatorDisplayLabel)
+    .filter((label): label is string => label !== null);
   return {
     id: offer.itemId,
     title: offer.title,
@@ -11,6 +15,7 @@ function listing(offer: LiveTaobaoProductOffer, confirmedProductName: string): L
     merchant: offer.merchant,
     primaryPrice: offer.salePrice,
     primaryPriceLabel: "常规成交价",
+    metadataItems: indicatorLabels,
     ...(offer.promotionPrice !== null ? {
       secondaryPrice: offer.promotionPrice,
       secondaryPriceLabel: "优惠后（条件优惠价）",

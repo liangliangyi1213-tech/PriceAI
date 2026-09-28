@@ -4,6 +4,7 @@ import { PlatformAuthError, toSafePlatformError } from "./errors";
 import { matchTaobaoPhoneOffer, type TaobaoProductMatch } from "./taobao-matching";
 import type { LiveTaobaoOffer, TaobaoClient, TaobaoMaterialSearchResponse } from "./taobao-client";
 import type { PlatformAdapter, PlatformSearchOptions, PlatformSearchResult, PlatformSearchSort } from "./types";
+import { createTaobaoIndicators } from "./indicator-policy";
 import type { Product } from "@/types/catalog";
 
 function boundedInteger(value: number | undefined, fallback: number): number {
@@ -28,7 +29,7 @@ export function mapTaobaoLiveOffer(offer: LiveTaobaoOffer): PlatformSearchResult
     originalPrice: offer.reservePrice ?? undefined,
     imageUrl: offer.pictUrl ?? offer.smallImages[0],
     shopName: offer.shopTitle,
-    sales: offer.totalSales ?? offer.annualVol ?? undefined,
+    providerIndicators: createTaobaoIndicators(offer),
     productUrl: offer.clickUrl ?? "",
     sourceMetadata: {
       shortTitle: offer.shortTitle,

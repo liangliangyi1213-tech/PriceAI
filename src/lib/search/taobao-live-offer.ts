@@ -1,4 +1,5 @@
 import type { LiveListingImage } from "@/lib/images/live-listing-image";
+import type { PlatformIndicator } from "@/lib/platforms/types";
 
 /** A public product-level Taobao listing, intentionally separate from persisted SKU Offers. */
 export type LiveTaobaoProductOffer = {
@@ -13,6 +14,7 @@ export type LiveTaobaoProductOffer = {
   /** Conditional price that may require activity, region, coupon, or subsidy eligibility. */
   promotionPrice: number | null;
   promotionTags: string[];
+  providerIndicators: readonly PlatformIndicator[];
   productUrl: string | null;
   source: "live";
 };

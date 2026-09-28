@@ -41,6 +41,20 @@ describe("catalog sync normalization and matching", () => {
     if (normalized.ok) expect(normalized.value.productUrl).toBeNull();
   });
 
+  it("does not normalize provider indicators into ordinary sales", () => {
+    const normalized = normalizePlatformSearchResult({
+      ...valid,
+      sales: undefined,
+      providerIndicators: [
+        { kind: "pdd_sales_tip", displayText: "已拼1.2万+", usage: "display_only" },
+        { kind: "pdd_realtime_sales_tip", displayText: "近2小时已拼100+件", usage: "display_only" },
+      ],
+    }, "2026-09-01T00:00:00.000Z");
+
+    expect(normalized.ok).toBe(true);
+    if (normalized.ok) expect(normalized.value.sales).toBeNull();
+  });
+
   it("does not confuse iPhone 16 Pro with iPhone 16 or 256GB with 512GB", () => {
     const pro = buildCatalogSyncPlan([valid], phones);
     expect(pro.matchedOffers).toHaveLength(1);

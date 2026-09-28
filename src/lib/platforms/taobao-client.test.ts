@@ -169,9 +169,20 @@ describe("parseTaobaoMaterialResponse", () => {
         },
       },
       annualVol: 12000,
+      annualVolDisplayText: "12000",
       totalSales: 12500,
       clickUrl: "https://s.click.taobao.com/test",
       variantId: null,
     })]);
+  });
+
+  it("preserves a formatted annual volume even when it cannot be parsed without ambiguity", () => {
+    const result = parseTaobaoMaterialResponse({
+      tbk_dg_material_optional_upgrade_response: {
+        result_list: { map_data: [{ ...rawItem, annual_vol: "1万+" }] },
+      },
+    });
+
+    expect(result.items[0]).toMatchObject({ annualVolDisplayText: "1万+", annualVol: null });
   });
 });

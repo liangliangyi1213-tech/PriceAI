@@ -35,8 +35,17 @@ describe("PinduoduoAdapter", () => {
     };
     const adapter = new PinduoduoAdapter({ client });
     await expect(adapter.searchGoods("测试商品", { limit: 12, page: 2 })).resolves.toEqual([
-      expect.objectContaining({ platform: "pdd", externalProductId: "123456789", price: 109.99, sales: 120000 }),
+      expect.objectContaining({
+        platform: "pdd",
+        externalProductId: "123456789",
+        price: 109.99,
+        providerIndicators: [
+          { kind: "pdd_realtime_sales_tip", displayText: "12万+", usage: "display_only" },
+          { kind: "pdd_sales_tip", displayText: "10万+", usage: "display_only" },
+        ],
+      }),
     ]);
+    expect((await adapter.searchGoods("测试商品"))[0]).not.toHaveProperty("sales");
     expect(client.searchGoods).toHaveBeenCalledWith("测试商品", { limit: 12, page: 2 });
     expect(client.getRecommendedGoods).not.toHaveBeenCalled();
   });
@@ -57,7 +66,10 @@ describe("PinduoduoAdapter", () => {
       price: 109.99,
       imageUrl: "https://img.example.test/main.jpg",
       shopName: "测试店铺",
-      sales: 120000,
+      providerIndicators: [
+        { kind: "pdd_realtime_sales_tip", displayText: "12万+", usage: "display_only" },
+        { kind: "pdd_sales_tip", displayText: "10万+", usage: "display_only" },
+      ],
       productUrl: "",
       sourceMetadata: {
         categoryName: "食品",
@@ -72,6 +84,20 @@ describe("PinduoduoAdapter", () => {
         thumbnailUrl: "https://img.example.test/thumb.jpg",
       },
     });
+  });
+
+  it("keeps time-window text opaque instead of parsing its first number as sales", () => {
+    const mapped = mapPinduoduoGoods({ ...goods, realtimeSalesTip: "近2小时已拼100+件" });
+
+    expect(mapped.providerIndicators).toEqual([
+      { kind: "pdd_realtime_sales_tip", displayText: "近2小时已拼100+件", usage: "display_only" },
+      { kind: "pdd_sales_tip", displayText: "10万+", usage: "display_only" },
+    ]);
+    expect(mapped).not.toHaveProperty("sales");
+  });
+
+  it("declares Pinduoduo product-only for catalog synchronization", () => {
+    expect(new PinduoduoAdapter({ client: null }).catalogSyncCapability).toBe("product_only");
   });
 
   it("exposes recommendations as a product pool, not keyword search", async () => {

@@ -33,9 +33,7 @@ function liveOffer(productId: string, price: number, variantId: string | null = 
     merchant: "测试商家",
     merchantType: null,
     hasCoupon: false,
-    salesTip: null,
-    realtimeSalesTip: null,
-    sales: null,
+    providerIndicators: [],
     price,
     source: "live",
     fetchedAt: "2026-09-05T00:00:00.000Z",
@@ -139,6 +137,7 @@ describe("searchCatalog", () => {
       salePrice: 1,
       promotionPrice: 0.5,
       promotionTags: ["条件优惠"],
+      providerIndicators: [],
       productUrl: "https://s.click.taobao.com/example",
       source: "live",
     };

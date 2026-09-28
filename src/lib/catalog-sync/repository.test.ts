@@ -24,6 +24,19 @@ describe("SupabaseCatalogSyncWriter", () => {
     expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ offer_identity: "jd:variant-1", price: 7599, variant_id: "variant-1", source: "mock" }), { onConflict: "offer_identity" });
   });
 
+  it("refuses to persist a provider indicator as ordinary sales", async () => {
+    const upsert = vi.fn();
+    const from = vi.fn(() => ({ upsert }));
+    mocks.getCatalogSyncWriteClient.mockReturnValue({ from });
+
+    await expect(new SupabaseCatalogSyncWriter().upsertOffer({
+      ...input,
+      normalized: { ...input.normalized, sales: null },
+    })).rejects.toMatchObject({ name: "CatalogSyncRepositoryError" });
+    expect(from).toHaveBeenCalledWith("offers");
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
   it("does not add a same-price snapshot inside the one-hour window", async () => {
     const maybeSingle = vi.fn().mockResolvedValue({ data: { price: 7599, original_price: 7999, recorded_at: "2026-09-01T09:30:00.000Z" }, error: null });
     const insert = vi.fn();
@@ -43,5 +56,6 @@ describe("SupabaseCatalogSyncWriter", () => {
     mocks.getCatalogSyncWriteClient.mockReturnValue({ from: vi.fn(() => ({ select: vi.fn(() => ({ eq: eqOne })), insert })) });
     await expect(new SupabaseCatalogSyncWriter().recordPriceSnapshotIfNeeded(input)).resolves.toEqual({ recorded: true });
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({ external_offer_id: "jd:variant-1", platform: "mock", price: 7599 }));
+    expect(insert.mock.calls[0][0]).not.toHaveProperty("sales");
   });
 });

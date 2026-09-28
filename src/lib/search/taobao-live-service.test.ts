@@ -57,6 +57,10 @@ describe("live Taobao product offers", () => {
       salePrice: 4299,
       promotionPrice: 3999,
       variantId: null,
+      providerIndicators: [
+        { kind: "taobao_annual_volume", displayText: "1000", numericValue: 1000, period: "annual", usage: "display_only" },
+        { kind: "taobao_affiliate_promotion_30d", value: 1200, period: "last_30_days", usage: "display_only" },
+      ],
       image: expect.objectContaining({
         platform: "taobao",
         externalProductId: "tb-live-1",

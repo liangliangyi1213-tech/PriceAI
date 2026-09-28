@@ -39,9 +39,7 @@ function liveOffer(): LivePinduoduoOffer {
     merchant: "页面商家",
     merchantType: null,
     hasCoupon: false,
-    salesTip: null,
-    realtimeSalesTip: null,
-    sales: null,
+    providerIndicators: [],
     price: 6_999,
     source: "live",
     fetchedAt: "2026-09-05T00:00:00.000Z",
@@ -60,6 +58,7 @@ function liveTaobaoOffer(): LiveTaobaoProductOffer {
     salePrice: 6999,
     promotionPrice: null,
     promotionTags: [],
+    providerIndicators: [],
     productUrl: "https://s.click.taobao.com/page",
     source: "live",
   };

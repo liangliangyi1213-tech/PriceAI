@@ -22,9 +22,10 @@ function liveOffer(overrides: Partial<LivePinduoduoOffer> = {}): LivePinduoduoOf
     couponAmount: 200,
     couponMinOrderAmount: 1_000,
     extraCouponAmount: 50,
-    salesTip: "已拼1.2万+",
-    realtimeSalesTip: "近2小时已拼100+件",
-    sales: 12_000,
+    providerIndicators: [
+      { kind: "pdd_realtime_sales_tip", displayText: "近2小时已拼100+件", usage: "display_only" },
+      { kind: "pdd_sales_tip", displayText: "已拼1.2万+", usage: "display_only" },
+    ],
     price: 6_999,
     source: "live",
     fetchedAt: "2026-09-05T00:00:00.000Z",
@@ -71,6 +72,7 @@ describe("product card presentation", () => {
       salePrice: 4299,
       promotionPrice: 3999,
       promotionTags: ["官方立减", "地区补贴"],
+      providerIndicators: [],
       productUrl: "https://s.click.taobao.com/example",
       source: "live",
     };
@@ -119,9 +121,7 @@ describe("product card presentation", () => {
       couponAmount: undefined,
       couponMinOrderAmount: undefined,
       extraCouponAmount: undefined,
-      salesTip: null,
-      realtimeSalesTip: null,
-      sales: null,
+      providerIndicators: [],
     });
     const withLive = renderToStaticMarkup(<SearchProductCard row={searchCatalog(
       [phones[0]],
@@ -231,6 +231,7 @@ describe("live Taobao offer presentation", () => {
       salePrice: 7_999,
       promotionPrice: null,
       promotionTags: [],
+      providerIndicators: [],
       productUrl: "https://s.click.taobao.com/example",
       source: "live",
       ...overrides,
@@ -240,7 +241,16 @@ describe("live Taobao offer presentation", () => {
   it("renders one independent card per offer and keeps conditional prices explicit", async () => {
     const { LiveTaobaoOffers } = await import("./live-taobao-offers");
     const html = renderToStaticMarkup(<LiveTaobaoOffers productName="iPhone 16 Pro" offers={[
-      taobaoOffer({ itemId: "one", title: "淘宝商品一", promotionPrice: 7_599, promotionTags: ["地区补贴"] }),
+      taobaoOffer({
+        itemId: "one",
+        title: "淘宝商品一",
+        promotionPrice: 7_599,
+        promotionTags: ["地区补贴"],
+        providerIndicators: [
+          { kind: "taobao_annual_volume", displayText: "1万+", period: "annual", usage: "display_only" },
+          { kind: "taobao_affiliate_promotion_30d", value: 12500, period: "last_30_days", usage: "display_only" },
+        ],
+      }),
       taobaoOffer({ itemId: "two", title: "淘宝商品二", salePrice: 7_899 }),
     ]} />);
 
@@ -251,6 +261,14 @@ describe("live Taobao offer presentation", () => {
     expect(html).toContain("优惠后（条件优惠价） ¥7,599");
     expect(html).toContain("需满足活动/地区/领券等条件");
     expect(html).toContain("地区补贴");
+    expect(html).toContain("淘宝平台年销量指标：1万+");
+    expect(html).toContain("近30天淘宝推广量：12,500");
+    const taobaoIndicators = html.match(/<li class="[^"]*" data-provider-indicator="true">/g) ?? [];
+    expect(taobaoIndicators).toHaveLength(2);
+    expect(taobaoIndicators.every((indicator) => !indicator.includes("truncate"))).toBe(true);
+    expect(html).not.toContain("淘宝平台年销量指标：1万+ · 近30天淘宝推广量：12,500");
+    expect(html).not.toContain("销量 12500");
+    expect(html).not.toContain("暂无销量");
     expect(html).toContain("去淘宝看看");
     expect(html).toContain("data-platform-badge=\"淘宝\"");
     expect(html.indexOf("data-platform-badge=\"淘宝\"")).toBeLessThan(html.indexOf("data-live-offer-image=\"true\""));
@@ -299,7 +317,13 @@ describe("live Taobao offer presentation", () => {
     expect(html).toContain("同规格实时报价");
     expect(html).toContain("256GB · 黑色 · 国行 · 全新");
     expect(html).toContain("Apple iPhone 16 实时商品标题");
-    expect(html).toContain("近2小时已拼100+件");
+    expect(html).toContain("平台实时提示：近2小时已拼100+件");
+    expect(html).toContain("平台提示：已拼1.2万+");
+    const pinduoduoIndicators = html.match(/<li class="[^"]*" data-provider-indicator="true">/g) ?? [];
+    expect(pinduoduoIndicators).toHaveLength(2);
+    expect(pinduoduoIndicators.every((indicator) => !indicator.includes("truncate"))).toBe(true);
+    expect(html).not.toContain("平台实时提示：近2小时已拼100+件 · 平台提示：已拼1.2万+");
+    expect(html).not.toContain("暂无销量");
     expect(html).toContain("券额 ¥200");
     expect(html).toContain("使用门槛 ¥1,000");
     expect(html).not.toContain("额外优惠 ¥50");

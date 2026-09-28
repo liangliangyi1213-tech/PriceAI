@@ -95,7 +95,7 @@ describe("live Pinduoduo offers", () => {
   it("maps honest metadata and a matching variant without mutating the catalog", () => {
     const before = structuredClone(product);
     const [offer] = selectLivePinduoduoOffers([product], "iphone16", [goods({ hasCoupon: true, couponPrice: 100, couponMinOrderAmount: 1000, extraCouponAmount: 20 })]).get(product.id)!;
-    expect(offer).toMatchObject({ productId: product.id, variantId: null, goodsId: "123", title: "Apple iPhone16 256GB 黑色 手机", image: { platform: "pinduoduo", externalProductId: "123", url: "https://img.pddpic.com/phone.jpg", alt: "iPhone 16" }, merchant: "品牌商城", price: 5000, normalPrice: 5000, source: "live", fetchedAt: "2026-09-05T00:00:00.000Z", salesTip: "1.2万+", sales: 12000, promotionRate: 20, hasCoupon: true, couponAmount: 100, couponMinOrderAmount: 1000, extraCouponAmount: 20 });
+    expect(offer).toMatchObject({ productId: product.id, variantId: null, goodsId: "123", title: "Apple iPhone16 256GB 黑色 手机", image: { platform: "pinduoduo", externalProductId: "123", url: "https://img.pddpic.com/phone.jpg", alt: "iPhone 16" }, merchant: "品牌商城", price: 5000, normalPrice: 5000, source: "live", fetchedAt: "2026-09-05T00:00:00.000Z", providerIndicators: [{ kind: "pdd_sales_tip", displayText: "1.2万+", usage: "display_only" }], promotionRate: 20, hasCoupon: true, couponAmount: 100, couponMinOrderAmount: 1000, extraCouponAmount: 20 });
     expect(offer).not.toHaveProperty("rating");
     expect(offer).not.toHaveProperty("reviewCount");
     expect(offer).not.toHaveProperty("url");
@@ -172,7 +172,7 @@ describe("live Pinduoduo offers", () => {
     });
     expect(JSON.stringify(result.diagnostics)).not.toMatch(/iphone|128GB|蓝色|港版|goodsId|title/i);
   });
-  it("sorts by relevance, then price, sales, goodsId and deduplicates before Top 5", () => {
+  it("sorts by relevance, then price and stable goodsId without using provider indicator numbers", () => {
     const input = [
       goods({ goodsId: "z", minNormalPrice: 4000, salesTip: "10" }),
       goods({ goodsId: "b", minNormalPrice: 4000, salesTip: "100" }),
@@ -186,6 +186,13 @@ describe("live Pinduoduo offers", () => {
     const selected = selectLivePinduoduoOffers([product], "iphone16", input).get(product.id)!;
     expect(selected.map((offer) => offer.goodsId)).toEqual(["c", "a", "b", "z", "d"]);
     expect(selectLivePinduoduoOffers([product], "iphone16", [...input].reverse()).get(product.id)!.map((offer) => offer.goodsId)).toEqual(["c", "a", "b", "z", "d"]);
+    const changedIndicators = input.map((item, index) => ({
+      ...item,
+      salesTip: index % 2 ? "999万+" : "1",
+      realtimeSalesTip: index % 2 ? "近2小时已拼1件" : "近2小时已拼999件",
+    }));
+    expect(selectLivePinduoduoOffers([product], "iphone16", changedIndicators).get(product.id)!.map((offer) => offer.goodsId))
+      .toEqual(["c", "a", "b", "z", "d"]);
   });
   it("limits each product independently", () => {
     const input = Array.from({ length: 8 }, (_, index) => goods({ goodsId: String(index) }));
@@ -196,9 +203,12 @@ describe("live Pinduoduo offers", () => {
     expect(selectLivePinduoduoOffers([product], "iphone16", input, 2).get(product.id)).toHaveLength(2);
     expect(selectLivePinduoduoOffers([product], "iphone16", input, 0).size).toBe(0);
   });
-  it("preserves missing sales and omits invalid optional numeric metadata", () => {
+  it("preserves opaque provider indicators and omits invalid optional numeric metadata", () => {
     const [offer] = selectLivePinduoduoOffers([product], "iphone16", [goods({ salesTip: "热销", realtimeSalesTip: null, couponPrice: -1, extraCouponAmount: NaN, couponMinOrderAmount: -1, promotionRate: Infinity })]).get(product.id)!;
-    expect(offer.sales).toBeNull();
+    expect(offer.providerIndicators).toEqual([
+      { kind: "pdd_sales_tip", displayText: "热销", usage: "display_only" },
+    ]);
+    expect(offer).not.toHaveProperty("sales");
     expect(offer).not.toHaveProperty("couponAmount");
     expect(offer).not.toHaveProperty("extraCouponAmount");
     expect(offer).not.toHaveProperty("couponMinOrderAmount");

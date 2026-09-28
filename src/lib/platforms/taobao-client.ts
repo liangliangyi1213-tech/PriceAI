@@ -51,6 +51,7 @@ export type LiveTaobaoOffer = {
   promotionTagList: string[];
   govSubsidy: LiveTaobaoGovSubsidy | null;
   annualVol: number | null;
+  annualVolDisplayText?: string | null;
   totalSales: number | null;
   clickUrl: string | null;
   /** Taobao Alliance does not expose public SKU details in this integration. */
@@ -228,7 +229,11 @@ function parseLiveTaobaoOffer(value: unknown): LiveTaobaoOffer | null {
     promotionPrice: positivePrice(promotionValue("final_promotion_price")),
     promotionTagList: promotionTagList(promotionValue("promotion_tag_list")),
     govSubsidy: govSubsidy(promotionValue("gov_subsidy")),
-    annualVol: nonNegativeInteger(basicValue("annual_vol")),
+    annualVol: (() => {
+      const value = optionalString(basicValue("annual_vol"));
+      return value && /^\d+(?:\.\d+)?$/.test(value) ? nonNegativeInteger(value) : null;
+    })(),
+    annualVolDisplayText: optionalString(basicValue("annual_vol")),
     totalSales: nonNegativeInteger(basicValue("tk_total_sales")),
     clickUrl: safeUrl(publish?.click_url),
     variantId: null,

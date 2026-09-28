@@ -3,6 +3,7 @@ import "server-only";
 import { selectLiveListingImage } from "@/lib/images/live-listing-image";
 import { getPlatformAdapter } from "@/lib/platforms/registry";
 import { TaobaoAdapter, type TaobaoPhoneOfferResult } from "@/lib/platforms/taobao-adapter";
+import { createTaobaoIndicators } from "@/lib/platforms/indicator-policy";
 import type { Product } from "@/types/catalog";
 
 import type { LiveTaobaoProductOffer } from "./taobao-live-offer";
@@ -65,6 +66,7 @@ function publicOffer(product: Product, result: TaobaoPhoneOfferResult): LiveTaob
     salePrice: offer.salePrice,
     promotionPrice,
     promotionTags,
+    providerIndicators: createTaobaoIndicators(offer),
     productUrl: safeHttpsUrl(offer.clickUrl),
     source: "live",
   };

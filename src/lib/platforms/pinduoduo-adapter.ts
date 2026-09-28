@@ -3,20 +3,13 @@ import "server-only";
 import { PlatformAuthError, PlatformUnavailableError, toSafePlatformError } from "./errors";
 import type { PinduoduoClient, PinduoduoRecommendedGoods } from "./pinduoduo-client";
 import type { PlatformAdapter, PlatformSearchOptions, PlatformSearchResult } from "./types";
+import { createPinduoduoIndicators } from "./indicator-policy";
 import { selectLivePinduoduoOffersWithDiagnostics } from "@/lib/search/pinduoduo-live-offer";
 import type { Product } from "@/types/catalog";
 
 type RecommendationSource = {
   getRecommendedProducts(options?: PlatformSearchOptions): Promise<PlatformSearchResult[]>;
 };
-
-function parseSalesTip(value: string | null): number | undefined {
-  if (!value) return undefined;
-  const match = value.replaceAll(",", "").match(/(\d+(?:\.\d+)?)\s*(万)?/);
-  if (!match) return undefined;
-  const amount = Number(match[1]) * (match[2] ? 10_000 : 1);
-  return Number.isFinite(amount) ? Math.floor(amount) : undefined;
-}
 
 export function mapPinduoduoGoods(goods: PinduoduoRecommendedGoods): PlatformSearchResult {
   return {
@@ -28,7 +21,7 @@ export function mapPinduoduoGoods(goods: PinduoduoRecommendedGoods): PlatformSea
     price: goods.minNormalPrice,
     imageUrl: goods.goodsImageUrl ?? goods.goodsThumbnailUrl ?? undefined,
     shopName: goods.mallName ?? "",
-    sales: parseSalesTip(goods.realtimeSalesTip ?? goods.salesTip),
+    providerIndicators: createPinduoduoIndicators(goods),
     productUrl: "",
     sourceMetadata: {
       categoryName: goods.categoryName,
@@ -52,6 +45,7 @@ export type PinduoduoPhoneImageCandidateResult = Readonly<{
 
 export class PinduoduoAdapter implements PlatformAdapter {
   readonly id = "pdd" as const;
+  readonly catalogSyncCapability = "product_only" as const;
 
   constructor(private readonly options: {
     client: (Pick<PinduoduoClient, "getRecommendedGoods"> & Partial<Pick<PinduoduoClient, "searchGoods">>) | null;

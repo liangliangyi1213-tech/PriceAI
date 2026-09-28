@@ -6,6 +6,8 @@ import {
   type VariantMatchResult,
 } from "@/lib/matching/evidence";
 import type { PinduoduoGoods } from "@/lib/platforms/pinduoduo-client";
+import { createPinduoduoIndicators } from "@/lib/platforms/indicator-policy";
+import type { PlatformIndicator } from "@/lib/platforms/types";
 import type { Product } from "@/types/catalog";
 import { classifyPinduoduoGoodsWithReason, pinduoduoTokens, scorePinduoduoRelevance, type PinduoduoClassificationReason } from "./pinduoduo-relevance";
 
@@ -27,9 +29,7 @@ export type LivePinduoduoOffer = ComparablePrice & {
   couponAmount?: number;
   couponMinOrderAmount?: number;
   extraCouponAmount?: number;
-  salesTip: string | null;
-  realtimeSalesTip: string | null;
-  sales: number | null;
+  providerIndicators: readonly PlatformIndicator[];
   promotionRate?: number;
   source: "live";
   fetchedAt: string;
@@ -97,14 +97,6 @@ export function selectComparablePinduoduoPrice(goods: PinduoduoGoods): Comparabl
   };
 }
 
-function salesFromTip(tip: string | null): number | null {
-  if (!tip) return null;
-  const match = tip.replace(/,/g, "").match(/^(?:已售|销量|已拼)?\s*(\d+(?:\.\d+)?)\s*(万|千|亿)?\+?\s*(?:件|人|单)?$/);
-  if (!match) return null;
-  const value = Number(match[1]) * ({ 万: 10_000, 千: 1_000, 亿: 100_000_000 }[match[2]] ?? 1);
-  return nonNegative(value) ? value : null;
-}
-
 type PinduoduoVariantAnalysis = { match: VariantMatchResult; rejectionReason?:
   | "storage" | "color" | "region" | "condition" | "insufficient_evidence" | "ambiguous" };
 
@@ -163,7 +155,7 @@ function compareText(left: string, right: string): number {
 
 function compareOffers(left: LivePinduoduoOffer, right: LivePinduoduoOffer): number {
   return right.relevance - left.relevance || left.price - right.price
-    || (right.sales ?? -1) - (left.sales ?? -1) || compareText(left.goodsId, right.goodsId)
+    || compareText(left.goodsId, right.goodsId)
     // Fully tied duplicate IDs choose a stable representative, regardless of input order.
     || compareText(JSON.stringify(left), JSON.stringify(right));
 }
@@ -229,8 +221,7 @@ export function selectLivePinduoduoOffersWithDiagnostics(products: readonly Prod
         ...(nonNegative(item.couponPrice) ? { couponAmount: item.couponPrice } : {}),
         ...(nonNegative(item.couponMinOrderAmount) ? { couponMinOrderAmount: item.couponMinOrderAmount } : {}),
         ...(nonNegative(item.extraCouponAmount) ? { extraCouponAmount: item.extraCouponAmount } : {}),
-        salesTip: item.salesTip, realtimeSalesTip: item.realtimeSalesTip,
-        sales: salesFromTip(item.salesTip),
+        providerIndicators: createPinduoduoIndicators(item),
         ...(nonNegative(item.promotionRate) ? { promotionRate: item.promotionRate } : {}),
         source: "live", fetchedAt: item.fetchedAt.toISOString(), relevance,
       });
